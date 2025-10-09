@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie } from '@/lib/auth';
+import { createSession, setSessionCookie, clearSessionCookie } from '@/lib/auth';
 
 const AuthSchema = z.object({
   password: z.string().min(1, 'Password is required'),

@@ -44,7 +44,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         const data = await response.json();
         setError(data.error || 'Invalid password');
       }
-    } catch (error) {
+    } catch {
       setError('Login failed. Please try again.');
     } finally {
       setIsLoading(false);

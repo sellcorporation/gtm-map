@@ -5,10 +5,32 @@ import * as schema from './schema';
 // Mock database for testing without real Supabase connection
 const isMockMode = process.env.DATABASE_URL?.includes('placeholder') || !process.env.DATABASE_URL;
 
-let db: any;
-let companies: any;
-let clusters: any;
-let ads: any;
+interface MockTable {
+  name: string;
+}
+
+type DbType = ReturnType<typeof drizzle<typeof schema>> | {
+  insert: (table: MockTable) => {
+    values: (data: Record<string, unknown>) => {
+      returning: () => Record<string, unknown>[];
+    };
+  };
+  select: () => {
+    from: (table: MockTable) => Record<string, unknown>[];
+  };
+  update: (table: MockTable) => {
+    set: (data: Record<string, unknown>) => {
+      where: (condition: Record<string, unknown>) => {
+        returning: () => Record<string, unknown>[];
+      };
+    };
+  };
+};
+
+let db: DbType;
+let companies: typeof schema.companies | MockTable;
+let clusters: typeof schema.clusters | MockTable;
+let ads: typeof schema.ads | MockTable;
 
 if (isMockMode) {
   // Mock database implementation
@@ -21,25 +43,25 @@ if (isMockMode) {
   };
 
   db = {
-    insert: (table: any) => ({
-      values: (data: any) => ({
+    insert: (table: MockTable) => ({
+      values: (data: Record<string, unknown>) => ({
         returning: () => {
           const id = Math.floor(Math.random() * 10000);
           const result = { id, ...data };
           const tableName = table.name || table;
           if (tableName === 'companies') {
-            mockData.companies.push(result);
+            mockData.companies.push(result as never);
           } else if (tableName === 'clusters') {
-            mockData.clusters.push(result);
+            mockData.clusters.push(result as never);
           } else if (tableName === 'ads') {
-            mockData.ads.push(result);
+            mockData.ads.push(result as never);
           }
           return [result];
         }
       })
     }),
     select: () => ({
-      from: (table: any) => {
+      from: (table: MockTable) => {
         const tableName = table.name || table;
         if (tableName === 'companies') return mockData.companies;
         if (tableName === 'clusters') return mockData.clusters;
@@ -47,17 +69,17 @@ if (isMockMode) {
         return [];
       }
     }),
-    update: (table: any) => ({
-      set: (data: any) => ({
-        where: (condition: any) => ({
+    update: (table: MockTable) => ({
+      set: (data: Record<string, unknown>) => ({
+        where: (condition: Record<string, unknown>) => ({
           returning: () => {
             const tableName = table.name || table;
-            let tableData: any[] = [];
+            let tableData: Record<string, unknown>[] = [];
             if (tableName === 'companies') tableData = mockData.companies;
             else if (tableName === 'clusters') tableData = mockData.clusters;
             else if (tableName === 'ads') tableData = mockData.ads;
             
-            const index = tableData.findIndex((item: any) => item.id === condition.id);
+            const index = tableData.findIndex((item) => item.id === condition.id);
             if (index !== -1) {
               tableData[index] = { ...tableData[index], ...data };
               return [tableData[index]];

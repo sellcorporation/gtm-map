@@ -27,7 +27,7 @@ export default function HomePage() {
         const { prospects: savedProspects, clusters: savedClusters, ads: savedAds } = JSON.parse(savedData);
         
         // Validate that ads have the required structure
-        const validAds = savedAds?.every((ad: any) => ad.lines && Array.isArray(ad.lines));
+        const validAds = savedAds?.every((ad: Ad) => ad.lines && Array.isArray(ad.lines));
         
         if (savedProspects?.length > 0 && validAds) {
           setProspects(savedProspects);
@@ -113,13 +113,13 @@ export default function HomePage() {
       // Update local state optimistically
       setProspects(prev => 
         prev.map(prospect => 
-          prospect.id === id ? { ...prospect, status: status as any } : prospect
+          prospect.id === id ? { ...prospect, status: status as Company['status'] } : prospect
         )
       );
 
       // Update localStorage
       const updatedProspects = prospects.map(prospect => 
-        prospect.id === id ? { ...prospect, status: status as any } : prospect
+        prospect.id === id ? { ...prospect, status: status as Company['status'] } : prospect
       );
       localStorage.setItem('gtm-data', JSON.stringify({
         prospects: updatedProspects,

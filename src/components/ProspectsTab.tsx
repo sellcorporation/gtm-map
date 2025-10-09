@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, ChevronDown } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import type { Company, Evidence } from '@/types';
 
 interface ProspectsTabProps {

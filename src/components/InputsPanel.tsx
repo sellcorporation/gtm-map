@@ -33,9 +33,9 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
       header: true,
       complete: (results) => {
         try {
-          const parsedCustomers: Customer[] = results.data
-            .filter((row: any) => row.name && row.domain)
-            .map((row: any) => ({
+          const parsedCustomers: Customer[] = (results.data as Record<string, string>[])
+            .filter((row) => row.name && row.domain)
+            .map((row) => ({
               name: row.name.trim(),
               domain: row.domain.trim(),
               notes: row.notes?.trim(),
@@ -48,7 +48,7 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
 
           setCustomers(parsedCustomers);
           setError('');
-        } catch (err) {
+        } catch {
           setError('Error parsing CSV file');
         }
       },

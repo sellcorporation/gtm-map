@@ -6,7 +6,7 @@ import { extractICP, findCompetitors, generateAdCopy } from '@/lib/ai';
 import { searchCompetitors } from '@/lib/search';
 import { AnalyseRequestSchema } from '@/lib/prompts';
 import { requireAuth } from '@/lib/auth';
-import type { Customer, ICP, Competitor, Evidence } from '@/types';
+import type { ICP, Competitor, Evidence, Company } from '@/types';
 
 async function fetchWebsiteContent(url: string): Promise<string> {
   try {
@@ -79,11 +79,11 @@ async function computeICPScore(company: Competitor, icp: ICP): Promise<number> {
   return Math.min(score, 100);
 }
 
-async function createClusters(prospects: any[], icp: ICP) {
+async function createClusters(prospects: Company[], icp: ICP) {
   const clusterMap = new Map<string, number[]>();
   
   // Group by industry
-  prospects.forEach((prospect, index) => {
+  prospects.forEach((prospect) => {
     const industry = icp.industries[0] || 'General';
     if (!clusterMap.has(industry)) {
       clusterMap.set(industry, []);

@@ -50,7 +50,7 @@ export async function searchCompetitors(
 
     const data = await response.json();
     
-    return data.results?.map((result: any) => ({
+    return data.results?.map((result: { title?: string; content?: string; url?: string }) => ({
       title: result.title || '',
       snippet: result.content || '',
       url: result.url || '',

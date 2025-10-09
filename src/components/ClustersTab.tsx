@@ -44,8 +44,8 @@ export default function ClustersTab({ clusters, ads }: ClustersTabProps) {
     <div className="space-y-6">
       {clusters.map((cluster) => {
         const clusterAds = getClusterAds(cluster.id);
-        const criteria = cluster.criteria as any;
-        const avgIcpScore = criteria?.avgIcpScore || 0;
+        const criteria = cluster.criteria as Record<string, unknown>;
+        const avgIcpScore = (criteria?.avgIcpScore as number) || 0;
         const companyIds = cluster.companyIds as number[];
 
         return (

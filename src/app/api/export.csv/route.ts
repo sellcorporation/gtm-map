@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, companies, clusters, ads } from '@/lib/db';
+import { db, companies } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 
 async function exportCSVHandler() {

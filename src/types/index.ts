@@ -41,8 +41,10 @@ export interface AdCopy {
 
 export interface ClusterSummary {
   label: string;
-  criteria: Record<string, any>;
+  criteria: Record<string, unknown>;
   companyIds: number[];
   avgIcpScore: number;
   count: number;
 }
+
+export type { Company, Cluster, Ad } from '@/lib/schema';
