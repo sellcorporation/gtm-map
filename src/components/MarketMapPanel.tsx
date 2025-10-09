@@ -13,6 +13,7 @@ interface MarketMapPanelProps {
   ads: Ad[];
   onStatusUpdate: (id: number, status: string) => Promise<void>;
   onProspectUpdate: (updatedProspect: Company) => void;
+  onMarkAsCustomer?: (prospect: Company) => void;
 }
 
 export default function MarketMapPanel({ 
@@ -20,7 +21,8 @@ export default function MarketMapPanel({
   clusters, 
   ads, 
   onStatusUpdate,
-  onProspectUpdate
+  onProspectUpdate,
+  onMarkAsCustomer
 }: MarketMapPanelProps) {
   const [activeTab, setActiveTab] = useState<'prospects' | 'clusters' | 'ads'>('prospects');
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
@@ -285,6 +287,7 @@ export default function MarketMapPanel({
             onStatusUpdate={onStatusUpdate}
             onProspectUpdate={onProspectUpdate}
             onGenerateMore={() => setShowGenerateDialog(true)}
+            onMarkAsCustomer={onMarkAsCustomer}
           />
         )}
         {activeTab === 'clusters' && (

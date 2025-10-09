@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus, Edit2, Trash2, Save, X, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
 import type { Company, Evidence, DecisionMaker } from '@/types';
@@ -11,9 +11,10 @@ interface ProspectsTabProps {
   onStatusUpdate: (id: number, status: string) => Promise<void>;
   onProspectUpdate: (updatedProspect: Company) => void;
   onGenerateMore?: () => void;
+  onMarkAsCustomer?: (prospect: Company) => void;
 }
 
-export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpdate, onGenerateMore }: ProspectsTabProps) {
+export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -431,21 +432,30 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                   <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => openEvidenceModal(prospect)}
+                    <button
+                      onClick={() => openEvidenceModal(prospect)}
                       className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
                       title="View Evidence"
                     >
                       <Eye className="h-4 w-4" />
                       <span className="ml-1 hidden lg:inline">Evidence</span>
                     </button>
+                    {onMarkAsCustomer && (
+                      <button
+                        onClick={() => onMarkAsCustomer(prospect)}
+                        className="text-green-600 hover:text-green-800 flex items-center transition-colors p-1 hover:bg-green-50 rounded"
+                        title="Mark as Customer"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDeleteCompany(prospect.id)}
                       className="text-red-600 hover:text-red-800 flex items-center transition-colors p-1 hover:bg-red-50 rounded"
                       title="Delete company"
                     >
                       <Trash2 className="h-4 w-4" />
-                  </button>
+                    </button>
                   </div>
                 </td>
               </tr>

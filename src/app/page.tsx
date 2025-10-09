@@ -290,6 +290,34 @@ export default function HomePage() {
     }));
   };
 
+  const handleMarkAsCustomer = (prospect: Company) => {
+    // Add prospect to customer list
+    const newCustomer: Customer = {
+      name: prospect.name,
+      domain: prospect.domain,
+      notes: prospect.notes || `Added from prospects. ICP Score: ${prospect.icpScore}. ${prospect.rationale}`,
+    };
+
+    // Check if already exists
+    if (customers.some(c => c.domain === prospect.domain)) {
+      toast.info(`${prospect.name} is already in your customer list`);
+      return;
+    }
+
+    const updatedCustomers = [...customers, newCustomer];
+    setCustomers(updatedCustomers);
+    
+    // Persist to localStorage
+    localStorage.setItem('gtm-customers', JSON.stringify(updatedCustomers));
+    
+    toast.success(`${prospect.name} added to customer list! Re-run analysis to find more similar prospects.`);
+  };
+
+  const handleBackToInput = () => {
+    setAnalysisStep('input');
+    toast.info('Add more customers and re-run analysis to improve your prospects');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -300,14 +328,27 @@ export default function HomePage() {
               AI-powered competitor expansion CRM for B2B teams
             </p>
           </div>
-          {(hasData || extractedICP || analysisStep !== 'input') && (
-            <button
-              onClick={handleClearAnalysis}
-              className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
-            >
-              Clear & Start Fresh
-            </button>
-          )}
+          <div className="flex gap-3">
+            {(hasData || analysisStep === 'results') && (
+              <button
+                onClick={handleBackToInput}
+                className="px-4 py-2 border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center"
+              >
+                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to Analysis
+              </button>
+            )}
+            {(hasData || extractedICP || analysisStep !== 'input') && (
+              <button
+                onClick={handleClearAnalysis}
+                className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+              >
+                Clear All Data
+              </button>
+            )}
+          </div>
         </div>
 
         {analysisStep === 'input' && (
@@ -378,6 +419,7 @@ export default function HomePage() {
               ads={ads}
               onStatusUpdate={handleStatusUpdate}
               onProspectUpdate={handleProspectUpdate}
+              onMarkAsCustomer={handleMarkAsCustomer}
             />
           </div>
         )}
