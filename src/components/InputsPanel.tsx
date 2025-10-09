@@ -351,12 +351,12 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
         {isLoading ? (
           <>
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-            Analysing & Expanding...
+            Extracting ICP...
           </>
         ) : (
           <>
             <FileText className="h-4 w-4 mr-2" />
-            Analyse & Expand
+            Extract ICP & Continue
           </>
         )}
       </button>

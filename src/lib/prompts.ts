@@ -99,6 +99,15 @@ export const AnalyseRequestSchema = z.object({
     domain: z.string().min(1, 'Customer domain is required'),
     notes: z.string().optional(),
   })).min(1, 'At least one customer is required'),
+  icp: z.object({
+    industries: z.array(z.string()),
+    pains: z.array(z.string()),
+    buyerRoles: z.array(z.string()),
+    firmographics: z.object({
+      size: z.string(),
+      geo: z.string(),
+    }),
+  }).optional(),
 });
 
 export const StatusUpdateSchema = z.object({

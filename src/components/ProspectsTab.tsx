@@ -93,7 +93,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <a
-                    href={`https://${prospect.domain}`}
+                    href={prospect.domain.startsWith('http') ? prospect.domain : `https://${prospect.domain}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800"

@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import InputsPanel from '@/components/InputsPanel';
+import ICPReviewPanel from '@/components/ICPReviewPanel';
 import MarketMapPanel from '@/components/MarketMapPanel';
-import type { Company, Cluster, Ad, Customer } from '@/types';
+import type { Company, Cluster, Ad, Customer, ICP } from '@/types';
 
 export default function HomePage() {
   const [prospects, setProspects] = useState<Company[]>([]);
@@ -12,6 +13,12 @@ export default function HomePage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasData, setHasData] = useState(false);
+  
+  // New state for ICP flow
+  const [analysisStep, setAnalysisStep] = useState<'input' | 'icp-review' | 'results'>('input');
+  const [extractedICP, setExtractedICP] = useState<ICP | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   // Load existing data on mount
   useEffect(() => {
@@ -46,7 +53,54 @@ export default function HomePage() {
     }
   };
 
-  const handleAnalyse = async (websiteUrl: string, customers: Customer[]) => {
+  const handleExtractICP = async (url: string, customerList: Customer[]) => {
+    setIsLoading(true);
+    setWebsiteUrl(url);
+    setCustomers(customerList);
+    
+    try {
+      const response = await fetch('/api/extract-icp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          websiteUrl: url,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      setExtractedICP(data.icp);
+      setAnalysisStep('icp-review');
+
+      // Show info message if using mock data
+      if (data.mockData) {
+        toast.info('Using demo ICP - OpenAI quota exceeded. Add credits to your OpenAI account for real AI analysis.');
+      } else {
+        toast.success('ICP extracted successfully! Please review and confirm.');
+      }
+      
+    } catch (error) {
+      console.error('ICP extraction error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to extract ICP';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReanalyzeICP = async () => {
+    if (!websiteUrl) return;
+    await handleExtractICP(websiteUrl, customers);
+  };
+
+  const handleConfirmICP = async (confirmedICP: ICP) => {
     setIsLoading(true);
     
     try {
@@ -58,6 +112,7 @@ export default function HomePage() {
         body: JSON.stringify({
           websiteUrl,
           customers,
+          icp: confirmedICP,
         }),
       });
 
@@ -72,6 +127,7 @@ export default function HomePage() {
       setClusters(data.clusters || []);
       setAds(data.ads || []);
       setHasData(true);
+      setAnalysisStep('results');
 
       // Save to localStorage for persistence
       localStorage.setItem('gtm-data', JSON.stringify({
@@ -94,6 +150,11 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBackToInput = () => {
+    setAnalysisStep('input');
+    setExtractedICP(null);
   };
 
   const handleStatusUpdate = async (id: number, status: string) => {
@@ -145,22 +206,15 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Panel - Inputs */}
-          <div className="space-y-6">
-            <InputsPanel onAnalyse={handleAnalyse} isLoading={isLoading} />
-          </div>
+        {analysisStep === 'input' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Panel - Inputs */}
+            <div className="space-y-6">
+              <InputsPanel onAnalyse={handleExtractICP} isLoading={isLoading} />
+            </div>
 
-          {/* Right Panel - Market Map */}
-          <div className="space-y-6">
-            {hasData ? (
-              <MarketMapPanel
-                prospects={prospects}
-                clusters={clusters}
-                ads={ads}
-                onStatusUpdate={handleStatusUpdate}
-              />
-            ) : (
+            {/* Right Panel - Placeholder */}
+            <div className="space-y-6">
               <div className="bg-white rounded-lg shadow p-12 text-center">
                 <div className="text-gray-400 mb-4">
                   <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -174,9 +228,54 @@ export default function HomePage() {
                   Enter your website URL and upload a customer list to start analysing and finding new prospects.
                 </p>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {analysisStep === 'icp-review' && extractedICP && (
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6">
+              <button
+                onClick={handleBackToInput}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+              >
+                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Inputs
+              </button>
+            </div>
+            <ICPReviewPanel
+              icp={extractedICP}
+              websiteUrl={websiteUrl}
+              onConfirm={handleConfirmICP}
+              onReanalyze={handleReanalyzeICP}
+              isLoading={isLoading}
+            />
+          </div>
+        )}
+
+        {analysisStep === 'results' && hasData && (
+          <div>
+            <div className="mb-6">
+              <button
+                onClick={handleBackToInput}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+              >
+                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Start New Analysis
+              </button>
+            </div>
+            <MarketMapPanel
+              prospects={prospects}
+              clusters={clusters}
+              ads={ads}
+              onStatusUpdate={handleStatusUpdate}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

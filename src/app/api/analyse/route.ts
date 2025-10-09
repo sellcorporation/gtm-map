@@ -146,13 +146,23 @@ async function createClusters(prospects: Company[], icp: ICP) {
 async function analyseHandler(request: NextRequest) {
   try {
     const body = await request.json();
-    const { websiteUrl, customers } = AnalyseRequestSchema.parse(body);
+    const { websiteUrl, customers, icp: providedICP } = AnalyseRequestSchema.parse(body);
     
-    // Fetch and parse website content
-    const websiteText = await fetchWebsiteContent(websiteUrl);
+    let icp: ICP;
+    let icpIsMock = false;
     
-    // Extract ICP
-    const { icp, isMock: icpIsMock } = await extractICP(websiteText);
+    // Use provided ICP if available, otherwise extract from website
+    if (providedICP) {
+      icp = providedICP;
+    } else {
+      // Fetch and parse website content
+      const websiteText = await fetchWebsiteContent(websiteUrl);
+      
+      // Extract ICP
+      const extraction = await extractICP(websiteText);
+      icp = extraction.icp;
+      icpIsMock = extraction.isMock;
+    }
     
     // Process each customer
     const allCompetitors: Competitor[] = [];
