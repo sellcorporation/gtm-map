@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
 import type { Company, Evidence, DecisionMaker } from '@/types';
@@ -19,6 +19,8 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [loadingDecisionMakers, setLoadingDecisionMakers] = useState<Set<number>>(new Set());
   const [detailModalCompany, setDetailModalCompany] = useState<Company | null>(null);
+  const [editingDM, setEditingDM] = useState<{ prospectId: number; dmIndex: number } | null>(null);
+  const [editedDMData, setEditedDMData] = useState<DecisionMaker | null>(null);
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
@@ -163,6 +165,61 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
     }
   };
 
+  const startEditingDM = (prospect: Company, dmIndex: number) => {
+    const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+    setEditingDM({ prospectId: prospect.id, dmIndex });
+    setEditedDMData({ ...decisionMakers[dmIndex] });
+  };
+
+  const cancelEditingDM = () => {
+    setEditingDM(null);
+    setEditedDMData(null);
+  };
+
+  const saveDecisionMaker = (prospect: Company, dmIndex: number) => {
+    if (!editedDMData) return;
+
+    try {
+      const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+      const updatedDMs = [...decisionMakers];
+      updatedDMs[dmIndex] = editedDMData;
+
+      const updatedProspect = {
+        ...prospect,
+        decisionMakers: updatedDMs,
+      };
+
+      onProspectUpdate(updatedProspect);
+      toast.success('Decision maker updated');
+      cancelEditingDM();
+    } catch (error) {
+      console.error('Error updating decision maker:', error);
+      toast.error('Failed to update decision maker');
+    }
+  };
+
+  const deleteDecisionMaker = (prospect: Company, dmIndex: number) => {
+    if (!confirm('Are you sure you want to delete this decision maker?')) {
+      return;
+    }
+
+    try {
+      const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+      const updatedDMs = decisionMakers.filter((_, idx) => idx !== dmIndex);
+
+      const updatedProspect = {
+        ...prospect,
+        decisionMakers: updatedDMs,
+      };
+
+      onProspectUpdate(updatedProspect);
+      toast.success('Decision maker deleted');
+    } catch (error) {
+      console.error('Error deleting decision maker:', error);
+      toast.error('Failed to delete decision maker');
+    }
+  };
+
   const getContactStatusColor = (status: DecisionMaker['contactStatus']) => {
     switch (status) {
       case 'Not Contacted': return 'bg-gray-100 text-gray-800';
@@ -215,19 +272,28 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
   };
 
   const handleDeleteCompany = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this company? This action cannot be undone.')) {
+      return;
+    }
+
     try {
-      const response = await fetch('/api/company', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId: id }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete company');
+      // In mock mode, handle deletions client-side only
+      // Signal deletion to parent component (id: -1 is the signal)
+      const companyToDelete = prospects.find(p => p.id === id);
+      if (companyToDelete) {
+        onProspectUpdate({ ...companyToDelete, id: -1 } as Company);
+        toast.success('Company deleted successfully');
       }
-
-      // This will be handled by parent component through callback
-      toast.success('Company deleted successfully');
+      
+      // If we had a real database connection, we'd do:
+      // const response = await fetch('/api/company', {
+      //   method: 'DELETE',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ companyId: id }),
+      // });
+      // if (!response.ok) {
+      //   throw new Error('Failed to delete company');
+      // }
     } catch (error) {
       console.error('Error deleting company:', error);
       toast.error('Failed to delete company');
@@ -299,7 +365,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                       className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline transition-colors max-w-[160px] truncate text-left"
                       title={`View details for ${prospect.name}`}
                     >
-                      {prospect.name}
+                  {prospect.name}
                     </button>
                   </div>
                 </td>
@@ -323,8 +389,8 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                 <td className="px-3 py-3 whitespace-nowrap text-sm">
                   <div className="group relative inline-block">
                     <span className={`font-medium ${getScoreColor(prospect.icpScore)} cursor-help`}>
-                      {prospect.icpScore}
-                    </span>
+                    {prospect.icpScore}
+                  </span>
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-64 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg">
                       {getScoreTooltip(prospect.icpScore)}
                       <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
@@ -363,14 +429,23 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                   </div>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
                   <button
                     onClick={() => openEvidenceModal(prospect)}
-                    className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
-                    title="View Evidence"
-                  >
-                    <Eye className="h-4 w-4" />
-                    <span className="ml-1 hidden lg:inline">Evidence</span>
+                      className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
+                      title="View Evidence"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span className="ml-1 hidden lg:inline">Evidence</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCompany(prospect.id)}
+                      className="text-red-600 hover:text-red-800 flex items-center transition-colors p-1 hover:bg-red-50 rounded"
+                      title="Delete company"
+                    >
+                      <Trash2 className="h-4 w-4" />
                   </button>
+                  </div>
                 </td>
               </tr>
               
@@ -398,63 +473,158 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                       {decisionMakers.length > 0 ? (
                         <>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {decisionMakers.map((dm, idx) => (
-                              <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div>
-                                    <p className="font-medium text-sm text-gray-900">{dm.name}</p>
-                                    <p className="text-xs text-gray-500">{dm.role}</p>
-                                  </div>
-                                  <select
-                                    value={dm.contactStatus}
-                                    onChange={(e) => updateDecisionMakerStatus(
-                                      prospect,
-                                      dm.name,
-                                      e.target.value as DecisionMaker['contactStatus']
-                                    )}
-                                    className={`text-xs px-2 py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer`}
-                                  >
-                                    <option value="Not Contacted">Not Contacted</option>
-                                    <option value="Attempted">Attempted</option>
-                                    <option value="Connected">Connected</option>
-                                    <option value="Responded">Responded</option>
-                                    <option value="Unresponsive">Unresponsive</option>
-                                  </select>
+                            {decisionMakers.map((dm, idx) => {
+                              const isEditing = editingDM?.prospectId === prospect.id && editingDM?.dmIndex === idx;
+                              
+                              return (
+                                <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
+                                  {isEditing && editedDMData ? (
+                                    // Edit mode
+                                    <div className="space-y-2">
+                                      <div>
+                                        <label className="text-xs text-gray-600">Name</label>
+                                        <input
+                                          type="text"
+                                          value={editedDMData.name}
+                                          onChange={(e) => setEditedDMData({ ...editedDMData, name: e.target.value })}
+                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs text-gray-600">Role</label>
+                                        <input
+                                          type="text"
+                                          value={editedDMData.role}
+                                          onChange={(e) => setEditedDMData({ ...editedDMData, role: e.target.value })}
+                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs text-gray-600">LinkedIn URL</label>
+                                        <input
+                                          type="text"
+                                          value={editedDMData.linkedin || ''}
+                                          onChange={(e) => setEditedDMData({ ...editedDMData, linkedin: e.target.value })}
+                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          placeholder="https://linkedin.com/in/..."
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs text-gray-600">Email</label>
+                                        <input
+                                          type="email"
+                                          value={editedDMData.email || ''}
+                                          onChange={(e) => setEditedDMData({ ...editedDMData, email: e.target.value })}
+                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          placeholder="email@example.com"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs text-gray-600">Phone</label>
+                                        <input
+                                          type="tel"
+                                          value={editedDMData.phone || ''}
+                                          onChange={(e) => setEditedDMData({ ...editedDMData, phone: e.target.value })}
+                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          placeholder="+1 (555) 123-4567"
+                                        />
+                                      </div>
+                                      <div className="flex gap-2 mt-3">
+                                        <button
+                                          onClick={() => saveDecisionMaker(prospect, idx)}
+                                          className="flex-1 inline-flex items-center justify-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                                        >
+                                          <Save className="h-3 w-3 mr-1" />
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={cancelEditingDM}
+                                          className="flex-1 inline-flex items-center justify-center px-3 py-1.5 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+                                        >
+                                          <X className="h-3 w-3 mr-1" />
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    // View mode
+                                    <>
+                                      <div className="flex items-start justify-between mb-2">
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-medium text-sm text-gray-900 truncate">{dm.name}</p>
+                                          <p className="text-xs text-gray-500 truncate">{dm.role}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 ml-2">
+                                          <button
+                                            onClick={() => startEditingDM(prospect, idx)}
+                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                            title="Edit decision maker"
+                                          >
+                                            <Edit2 className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => deleteDecisionMaker(prospect, idx)}
+                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                            title="Delete decision maker"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div className="mb-2">
+                                        <select
+                                          value={dm.contactStatus}
+                                          onChange={(e) => updateDecisionMakerStatus(
+                                            prospect,
+                                            dm.name,
+                                            e.target.value as DecisionMaker['contactStatus']
+                                          )}
+                                          className={`text-xs px-2 py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer w-full`}
+                                        >
+                                          <option value="Not Contacted">Not Contacted</option>
+                                          <option value="Attempted">Attempted</option>
+                                          <option value="Connected">Connected</option>
+                                          <option value="Responded">Responded</option>
+                                          <option value="Unresponsive">Unresponsive</option>
+                                        </select>
+                                      </div>
+                                      
+                                      <div className="space-y-1">
+                                        {dm.linkedin && (
+                                          <a
+                                            href={dm.linkedin}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center text-xs text-blue-600 hover:text-blue-800 truncate"
+                                          >
+                                            <Linkedin className="h-3 w-3 mr-1 flex-shrink-0" />
+                                            <span className="truncate">LinkedIn Profile</span>
+                                          </a>
+                                        )}
+                                        {dm.email && (
+                                          <a
+                                            href={`mailto:${dm.email}`}
+                                            className="flex items-center text-xs text-gray-600 hover:text-gray-800 truncate"
+                                          >
+                                            <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
+                                            <span className="truncate">{dm.email}</span>
+                                          </a>
+                                        )}
+                                        {dm.phone && (
+                                          <a
+                                            href={`tel:${dm.phone}`}
+                                            className="flex items-center text-xs text-gray-600 hover:text-gray-800 truncate"
+                                          >
+                                            <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
+                                            <span className="truncate">{dm.phone}</span>
+                                          </a>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
-                                
-                                <div className="space-y-1">
-                                  {dm.linkedin && (
-                                    <a
-                                      href={dm.linkedin}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center text-xs text-blue-600 hover:text-blue-800"
-                                    >
-                                      <Linkedin className="h-3 w-3 mr-1" />
-                                      LinkedIn Profile
-                                    </a>
-                                  )}
-                                  {dm.email && (
-                                    <a
-                                      href={`mailto:${dm.email}`}
-                                      className="flex items-center text-xs text-gray-600 hover:text-gray-800"
-                                    >
-                                      <Mail className="h-3 w-3 mr-1" />
-                                      {dm.email}
-                                    </a>
-                                  )}
-                                  {dm.phone && (
-                                    <a
-                                      href={`tel:${dm.phone}`}
-                                      className="flex items-center text-xs text-gray-600 hover:text-gray-800"
-                                    >
-                                      <Phone className="h-3 w-3 mr-1" />
-                                      {dm.phone}
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                           <div className="mt-3 flex justify-center">
                             <button
