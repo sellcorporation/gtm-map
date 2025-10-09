@@ -225,10 +225,10 @@ async function analyseHandler(request: NextRequest) {
     console.error('Analysis error:', error);
     
     if (error instanceof z.ZodError) {
-      const errorMessage = error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-      console.error('Validation errors:', error.errors);
+      const errorMessage = error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      console.error('Validation errors:', error.issues);
       return NextResponse.json(
-        { error: `Invalid input: ${errorMessage}`, details: error.errors },
+        { error: `Invalid input: ${errorMessage}`, details: error.issues },
         { status: 400 }
       );
     }

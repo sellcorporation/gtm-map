@@ -11,13 +11,14 @@ async function exportBriefHandler() {
     ]);
     
     // Group ads by cluster
-    const adsByCluster = allAds.reduce((acc, ad) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adsByCluster = allAds.reduce((acc: Record<number, any[]>, ad: any) => {
       if (!acc[ad.clusterId]) {
         acc[ad.clusterId] = [];
       }
       acc[ad.clusterId].push(ad);
       return acc;
-    }, {} as Record<number, typeof allAds>);
+    }, {});
     
     // Generate markdown content
     let markdown = '# Go-To-Market Map Brief\n\n';
@@ -30,7 +31,8 @@ async function exportBriefHandler() {
     markdown += `- **Ad Campaigns**: ${allAds.length}\n\n`;
     
     // Status breakdown
-    const statusCounts = allCompanies.reduce((acc, company) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const statusCounts = allCompanies.reduce((acc: Record<string, number>, company: any) => {
       acc[company.status] = (acc[company.status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -43,11 +45,13 @@ async function exportBriefHandler() {
     
     // Top prospects by ICP score
     const topProspects = allCompanies
-      .sort((a, b) => b.icpScore - a.icpScore)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .sort((a: any, b: any) => b.icpScore - a.icpScore)
       .slice(0, 10);
     
     markdown += '## Top Prospects by ICP Score\n\n';
-    topProspects.forEach((prospect, index) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    topProspects.forEach((prospect: any, index: number) => {
       markdown += `${index + 1}. **${prospect.name}** (${prospect.domain})\n`;
       markdown += `   - ICP Score: ${prospect.icpScore}\n`;
       markdown += `   - Confidence: ${prospect.confidence}%\n`;
@@ -56,17 +60,20 @@ async function exportBriefHandler() {
     
     // Clusters and ad campaigns
     markdown += '## Clusters & Ad Campaigns\n\n';
-    allClusters.forEach(cluster => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allClusters.forEach((cluster: any) => {
       markdown += `### ${cluster.label}\n\n`;
       markdown += `- **Companies**: ${(cluster.companyIds as number[]).length}\n`;
       markdown += `- **Criteria**: ${JSON.stringify(cluster.criteria)}\n\n`;
       
       const clusterAds = adsByCluster[cluster.id] || [];
-      clusterAds.forEach(ad => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      clusterAds.forEach((ad: any) => {
         markdown += `#### Ad Campaign\n\n`;
         markdown += `**Headline**: ${ad.headline}\n\n`;
         markdown += `**Body**:\n`;
-        (ad.lines as string[]).forEach(line => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (ad.lines as string[]).forEach((line: any) => {
           markdown += `- ${line}\n`;
         });
         markdown += `\n**CTA**: ${ad.cta}\n\n`;

@@ -98,11 +98,11 @@ export default function ClustersTab({ clusters, ads }: ClustersTabProps) {
                       </div>
                       
                       <div className="space-y-2">
-                        {ad.lines && Array.isArray(ad.lines) && ad.lines.map((line, index) => (
+                        {ad.lines && Array.isArray(ad.lines) ? (ad.lines as string[]).map((line, index) => (
                           <p key={index} className="text-sm text-gray-700">
                             {line}
                           </p>
-                        ))}
+                        )) : null}
                       </div>
                       
                       <div className="mt-3">

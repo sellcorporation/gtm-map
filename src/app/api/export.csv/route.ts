@@ -19,7 +19,8 @@ async function exportCSVHandler() {
     ];
     
     // Create CSV rows
-    const rows = allCompanies.map(company => [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = allCompanies.map((company: any) => [
       company.name,
       company.domain,
       company.source,
@@ -32,7 +33,8 @@ async function exportCSVHandler() {
     
     // Combine headers and rows
     const csvContent = [headers, ...rows]
-      .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((row: any) => row.map((field: any) => `"${String(field).replace(/"/g, '""')}"`).join(','))
       .join('\n');
     
     return new NextResponse(csvContent, {

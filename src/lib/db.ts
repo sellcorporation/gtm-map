@@ -9,28 +9,14 @@ interface MockTable {
   name: string;
 }
 
-type DbType = ReturnType<typeof drizzle<typeof schema>> | {
-  insert: (table: MockTable) => {
-    values: (data: Record<string, unknown>) => {
-      returning: () => Record<string, unknown>[];
-    };
-  };
-  select: () => {
-    from: (table: MockTable) => Record<string, unknown>[];
-  };
-  update: (table: MockTable) => {
-    set: (data: Record<string, unknown>) => {
-      where: (condition: Record<string, unknown>) => {
-        returning: () => Record<string, unknown>[];
-      };
-    };
-  };
-};
-
-let db: DbType;
-let companies: typeof schema.companies | MockTable;
-let clusters: typeof schema.clusters | MockTable;
-let ads: typeof schema.ads | MockTable;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let db: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let companies: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let clusters: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let ads: any;
 
 if (isMockMode) {
   // Mock database implementation
