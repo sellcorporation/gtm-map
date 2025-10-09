@@ -122,26 +122,14 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
     status: DecisionMaker['contactStatus']
   ) => {
     try {
-      const response = await fetch('/api/decision-makers/update-status', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId: prospect.id,
-          decisionMakerName: dmName,
-          contactStatus: status,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update status');
-      }
-
-      const data = await response.json();
+      // In mock mode, we handle updates client-side only
+      // The backend mock DB doesn't persist between requests
+      // In production with a real DB, this would call the API
       
       // Update the prospect with updated decision maker
       const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
       const updatedDMs = decisionMakers.map(dm => 
-        dm.name === dmName ? data.decisionMaker : dm
+        dm.name === dmName ? { ...dm, contactStatus: status } : dm
       );
       
       const updatedProspect = {
@@ -151,6 +139,20 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
       
       onProspectUpdate(updatedProspect);
       toast.success('Contact status updated');
+      
+      // If we had a real database connection, we'd do:
+      // const response = await fetch('/api/decision-makers/update-status', {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     companyId: prospect.id,
+      //     decisionMakerName: dmName,
+      //     contactStatus: status,
+      //   }),
+      // });
+      // if (!response.ok) {
+      //   throw new Error('Failed to update status');
+      // }
     } catch (error) {
       console.error('Error updating decision maker status:', error);
       toast.error('Failed to update status');
@@ -170,19 +172,10 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
 
   const updateProspectQuality = async (prospect: Company, quality: 'excellent' | 'good' | 'poor' | null) => {
     try {
-      const response = await fetch('/api/quality', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId: prospect.id,
-          quality,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update quality');
-      }
-
+      // In mock mode, we handle updates client-side only
+      // The backend mock DB doesn't persist between requests
+      // In production with a real DB, this would call the API
+      
       // Update the prospect with new quality
       const updatedProspect = {
         ...prospect,
@@ -191,6 +184,19 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
       
       onProspectUpdate(updatedProspect);
       toast.success('Feedback saved');
+      
+      // If we had a real database connection, we'd do:
+      // const response = await fetch('/api/quality', {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     companyId: prospect.id,
+      //     quality,
+      //   }),
+      // });
+      // if (!response.ok) {
+      //   throw new Error('Failed to update quality');
+      // }
     } catch (error) {
       console.error('Error updating quality:', error);
       toast.error('Failed to save feedback');

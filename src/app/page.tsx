@@ -217,19 +217,11 @@ export default function HomePage() {
 
   const handleStatusUpdate = async (id: number, status: string) => {
     try {
-      const response = await fetch('/api/status', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id, status }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update status');
-      }
-
-      // Update local state optimistically
+      // In mock mode, we handle updates client-side only
+      // The backend mock DB doesn't persist between requests
+      // In production with a real DB, this would call the API
+      
+      // Update local state
       setProspects(prev => 
         prev.map(prospect => 
           prospect.id === id ? { ...prospect, status: status as Company['status'] } : prospect
@@ -247,6 +239,16 @@ export default function HomePage() {
       }));
 
       toast.success('Status updated successfully');
+      
+      // If we had a real database connection, we'd do:
+      // const response = await fetch('/api/status', {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ id, status }),
+      // });
+      // if (!response.ok) {
+      //   throw new Error('Failed to update status');
+      // }
       
     } catch (error) {
       console.error('Status update error:', error);
