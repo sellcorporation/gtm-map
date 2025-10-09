@@ -482,50 +482,50 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                                     // Edit mode
                                     <div className="space-y-2">
                                       <div>
-                                        <label className="text-xs text-gray-600">Name</label>
+                                        <label className="text-xs text-gray-700 font-medium">Name</label>
                                         <input
                                           type="text"
                                           value={editedDMData.name}
                                           onChange={(e) => setEditedDMData({ ...editedDMData, name: e.target.value })}
-                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-xs text-gray-600">Role</label>
+                                        <label className="text-xs text-gray-700 font-medium">Role</label>
                                         <input
                                           type="text"
                                           value={editedDMData.role}
                                           onChange={(e) => setEditedDMData({ ...editedDMData, role: e.target.value })}
-                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-xs text-gray-600">LinkedIn URL</label>
+                                        <label className="text-xs text-gray-700 font-medium">LinkedIn URL</label>
                                         <input
                                           type="text"
                                           value={editedDMData.linkedin || ''}
                                           onChange={(e) => setEditedDMData({ ...editedDMData, linkedin: e.target.value })}
-                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                           placeholder="https://linkedin.com/in/..."
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-xs text-gray-600">Email</label>
+                                        <label className="text-xs text-gray-700 font-medium">Email</label>
                                         <input
                                           type="email"
                                           value={editedDMData.email || ''}
                                           onChange={(e) => setEditedDMData({ ...editedDMData, email: e.target.value })}
-                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                           placeholder="email@example.com"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-xs text-gray-600">Phone</label>
+                                        <label className="text-xs text-gray-700 font-medium">Phone</label>
                                         <input
                                           type="tel"
                                           value={editedDMData.phone || ''}
                                           onChange={(e) => setEditedDMData({ ...editedDMData, phone: e.target.value })}
-                                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                          className="w-full text-sm text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                           placeholder="+1 (555) 123-4567"
                                         />
                                       </div>
