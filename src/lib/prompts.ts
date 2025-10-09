@@ -83,11 +83,14 @@ Use British English spelling and B2B tone.`;
 export const AnalyseRequestSchema = z.object({
   websiteUrl: z.string().min(1, 'Website URL is required').refine(
     (url) => {
-      // Allow URLs with or without protocol, with or without www
-      const withProtocol = url.startsWith('http://') || url.startsWith('https://');
-      const withWww = url.startsWith('www.');
-      const plainDomain = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}/.test(url);
-      return withProtocol || withWww || plainDomain;
+      // Remove protocol if present for validation
+      const cleanUrl = url.replace(/^https?:\/\//, '');
+      
+      // Validate domain format (allows www. prefix and standard domain formats)
+      // Must have valid characters (alphanumeric, hyphens, dots only) and a TLD
+      const domainRegex = /^(www\.)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+      
+      return domainRegex.test(cleanUrl);
     },
     { message: 'Please enter a valid website URL (e.g., example.com, www.example.com, or https://example.com)' }
   ),

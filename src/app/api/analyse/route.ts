@@ -47,7 +47,21 @@ async function fetchWebsiteContent(url: string): Promise<string> {
     return text;
   } catch (error) {
     console.error('Error fetching website:', error);
-    throw new Error('Failed to fetch website content');
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+        throw new Error('Domain not found. Please check the website URL and try again.');
+      }
+      if (error.message.includes('ECONNREFUSED')) {
+        throw new Error('Connection refused. The website may be down or unreachable.');
+      }
+      if (error.message.includes('ETIMEDOUT')) {
+        throw new Error('Connection timed out. The website took too long to respond.');
+      }
+    }
+    
+    throw new Error('Failed to fetch website content. Please verify the URL is correct.');
   }
 }
 
