@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { toast } from 'sonner';
+import CompanyDetailModal from './CompanyDetailModal';
 import type { Company, Evidence, DecisionMaker } from '@/types';
 
 interface ProspectsTabProps {
@@ -16,6 +17,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [loadingDecisionMakers, setLoadingDecisionMakers] = useState<Set<number>>(new Set());
+  const [detailModalCompany, setDetailModalCompany] = useState<Company | null>(null);
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
@@ -202,6 +204,26 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
     return <Minus className="h-4 w-4 text-gray-400" />;
   };
 
+  const handleDeleteCompany = async (id: number) => {
+    try {
+      const response = await fetch('/api/company', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: id }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete company');
+      }
+
+      // This will be handled by parent component through callback
+      toast.success('Company deleted successfully');
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      toast.error('Failed to delete company');
+    }
+  };
+
   if (prospects.length === 0) {
     return (
       <div className="text-center py-12">
@@ -250,21 +272,27 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
               return (
                 <React.Fragment key={prospect.id}>
                   <tr className="hover:bg-gray-50">
-                    <td className="px-3 py-3">
-                      <button
-                        onClick={() => toggleRow(prospect.id)}
-                        className="flex items-center text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 mr-1 flex-shrink-0" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 mr-1 flex-shrink-0" />
-                        )}
-                        <span className="max-w-[180px] truncate" title={prospect.name}>
-                          {prospect.name}
-                        </span>
-                      </button>
-                    </td>
+                <td className="px-3 py-3">
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => toggleRow(prospect.id)}
+                      className="flex items-center text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors mr-2"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setDetailModalCompany(prospect)}
+                      className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline transition-colors max-w-[160px] truncate text-left"
+                      title={`View details for ${prospect.name}`}
+                    >
+                      {prospect.name}
+                    </button>
+                  </div>
+                </td>
                 <td className="px-3 py-3">
                   <a
                     href={prospect.domain.startsWith('http') ? prospect.domain : `https://${prospect.domain}`}
@@ -493,6 +521,25 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
             </div>
           </div>
         </div>
+      )}
+
+      {/* Company Detail Modal */}
+      {detailModalCompany && (
+        <CompanyDetailModal
+          company={detailModalCompany}
+          allCompanies={prospects}
+          onClose={() => setDetailModalCompany(null)}
+          onUpdate={(updated) => {
+            onProspectUpdate(updated);
+            setDetailModalCompany(null);
+          }}
+          onDelete={(id) => {
+            handleDeleteCompany(id);
+            // Remove from list
+            onProspectUpdate({ ...detailModalCompany, id: -1 } as Company); // Signal deletion
+            setDetailModalCompany(null);
+          }}
+        />
       )}
     </>
   );

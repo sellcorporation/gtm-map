@@ -17,6 +17,9 @@ export const companies = pgTable('companies', {
   quality: text('quality', {
     enum: ['excellent', 'good', 'poor']
   }), // for ML feedback
+  notes: text('notes'), // CRM notes for this company
+  tags: json('tags'), // array of tag strings for grouping
+  relatedCompanyIds: json('related_company_ids'), // array of related company IDs
 });
 
 export const clusters = pgTable('clusters', {

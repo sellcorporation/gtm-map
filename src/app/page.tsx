@@ -255,6 +255,18 @@ export default function HomePage() {
   };
 
   const handleProspectUpdate = (updatedProspect: Company) => {
+    // If id is -1, it's a signal to delete
+    if (updatedProspect.id === -1) {
+      setProspects(prev => prev.filter(p => p.id !== updatedProspect.id));
+      const filtered = prospects.filter(p => p.id !== updatedProspect.id);
+      localStorage.setItem('gtm-data', JSON.stringify({
+        prospects: filtered,
+        clusters,
+        ads,
+      }));
+      return;
+    }
+
     // Update prospects state
     setProspects(prev =>
       prev.map(p => p.id === updatedProspect.id ? updatedProspect : p)
