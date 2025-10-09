@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
 import type { Company, Evidence, DecisionMaker } from '@/types';
@@ -10,9 +10,10 @@ interface ProspectsTabProps {
   prospects: Company[];
   onStatusUpdate: (id: number, status: string) => Promise<void>;
   onProspectUpdate: (updatedProspect: Company) => void;
+  onGenerateMore?: () => void;
 }
 
-export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpdate }: ProspectsTabProps) {
+export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpdate, onGenerateMore }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -98,14 +99,15 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
 
       const data = await response.json();
       
-      // Update the prospect with new decision makers
+      // Append new decision makers to existing ones (if any)
+      const existingDMs = (prospect.decisionMakers as DecisionMaker[]) || [];
       const updatedProspect = {
         ...prospect,
-        decisionMakers: data.decisionMakers,
+        decisionMakers: [...existingDMs, ...data.decisionMakers],
       };
       
       onProspectUpdate(updatedProspect);
-      toast.success('Decision makers generated!');
+      toast.success(`Added ${data.decisionMakers.length} decision maker${data.decisionMakers.length > 1 ? 's' : ''}!`);
     } catch (error) {
       console.error('Error generating decision makers:', error);
       toast.error('Failed to generate decision makers');
@@ -394,65 +396,77 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                       </div>
                       
                       {decisionMakers.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {decisionMakers.map((dm, idx) => (
-                            <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
-                              <div className="flex items-start justify-between mb-2">
-                                <div>
-                                  <p className="font-medium text-sm text-gray-900">{dm.name}</p>
-                                  <p className="text-xs text-gray-500">{dm.role}</p>
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {decisionMakers.map((dm, idx) => (
+                              <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <p className="font-medium text-sm text-gray-900">{dm.name}</p>
+                                    <p className="text-xs text-gray-500">{dm.role}</p>
+                                  </div>
+                                  <select
+                                    value={dm.contactStatus}
+                                    onChange={(e) => updateDecisionMakerStatus(
+                                      prospect,
+                                      dm.name,
+                                      e.target.value as DecisionMaker['contactStatus']
+                                    )}
+                                    className={`text-xs px-2 py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer`}
+                                  >
+                                    <option value="Not Contacted">Not Contacted</option>
+                                    <option value="Attempted">Attempted</option>
+                                    <option value="Connected">Connected</option>
+                                    <option value="Responded">Responded</option>
+                                    <option value="Unresponsive">Unresponsive</option>
+                                  </select>
                                 </div>
-                                <select
-                                  value={dm.contactStatus}
-                                  onChange={(e) => updateDecisionMakerStatus(
-                                    prospect,
-                                    dm.name,
-                                    e.target.value as DecisionMaker['contactStatus']
+                                
+                                <div className="space-y-1">
+                                  {dm.linkedin && (
+                                    <a
+                                      href={dm.linkedin}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      <Linkedin className="h-3 w-3 mr-1" />
+                                      LinkedIn Profile
+                                    </a>
                                   )}
-                                  className={`text-xs px-2 py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer`}
-                                >
-                                  <option value="Not Contacted">Not Contacted</option>
-                                  <option value="Attempted">Attempted</option>
-                                  <option value="Connected">Connected</option>
-                                  <option value="Responded">Responded</option>
-                                  <option value="Unresponsive">Unresponsive</option>
-                                </select>
+                                  {dm.email && (
+                                    <a
+                                      href={`mailto:${dm.email}`}
+                                      className="flex items-center text-xs text-gray-600 hover:text-gray-800"
+                                    >
+                                      <Mail className="h-3 w-3 mr-1" />
+                                      {dm.email}
+                                    </a>
+                                  )}
+                                  {dm.phone && (
+                                    <a
+                                      href={`tel:${dm.phone}`}
+                                      className="flex items-center text-xs text-gray-600 hover:text-gray-800"
+                                    >
+                                      <Phone className="h-3 w-3 mr-1" />
+                                      {dm.phone}
+                                    </a>
+                                  )}
+                                </div>
                               </div>
-                              
-                              <div className="space-y-1">
-                                {dm.linkedin && (
-                                  <a
-                                    href={dm.linkedin}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    <Linkedin className="h-3 w-3 mr-1" />
-                                    LinkedIn Profile
-                                  </a>
-                                )}
-                                {dm.email && (
-                                  <a
-                                    href={`mailto:${dm.email}`}
-                                    className="flex items-center text-xs text-gray-600 hover:text-gray-800"
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    {dm.email}
-                                  </a>
-                                )}
-                                {dm.phone && (
-                                  <a
-                                    href={`tel:${dm.phone}`}
-                                    className="flex items-center text-xs text-gray-600 hover:text-gray-800"
-                                  >
-                                    <Phone className="h-3 w-3 mr-1" />
-                                    {dm.phone}
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex justify-center">
+                            <button
+                              onClick={() => generateDecisionMakers(prospect)}
+                              disabled={loadingDecisionMakers.has(prospect.id)}
+                              className="text-xs px-4 py-2 bg-white border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              {loadingDecisionMakers.has(prospect.id) ? 'Generating...' : 'Generate More Decision Makers'}
+                            </button>
+                          </div>
+                        </>
                       ) : (
                         <p className="text-sm text-gray-500">No decision makers generated yet. Click the button above to generate them.</p>
                       )}
@@ -466,6 +480,19 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
           </tbody>
         </table>
       </div>
+
+      {/* Generate More Prospects Button */}
+      {onGenerateMore && (
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={onGenerateMore}
+            className="inline-flex items-center px-6 py-3 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Generate More Prospects
+          </button>
+        </div>
+      )}
 
       {/* Evidence Modal */}
       {isModalOpen && selectedProspect && (

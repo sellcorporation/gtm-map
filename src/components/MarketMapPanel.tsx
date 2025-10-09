@@ -284,6 +284,7 @@ export default function MarketMapPanel({
             prospects={prospects} 
             onStatusUpdate={onStatusUpdate}
             onProspectUpdate={onProspectUpdate}
+            onGenerateMore={() => setShowGenerateDialog(true)}
           />
         )}
         {activeTab === 'clusters' && (
