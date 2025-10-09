@@ -257,10 +257,15 @@ export default function HomePage() {
   };
 
   const handleProspectUpdate = (updatedProspect: Company) => {
-    // If id is -1, it's a signal to delete
-    if (updatedProspect.id === -1) {
-      setProspects(prev => prev.filter(p => p.id !== updatedProspect.id));
-      const filtered = prospects.filter(p => p.id !== updatedProspect.id);
+    // Check if this is a deletion signal (domain starts with __DELETE_)
+    if (updatedProspect.domain.startsWith('__DELETE_')) {
+      const idToDelete = updatedProspect.id;
+      
+      // Remove from state
+      setProspects(prev => prev.filter(p => p.id !== idToDelete));
+      
+      // Update localStorage
+      const filtered = prospects.filter(p => p.id !== idToDelete);
       localStorage.setItem('gtm-data', JSON.stringify({
         prospects: filtered,
         clusters,

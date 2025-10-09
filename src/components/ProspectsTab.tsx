@@ -278,10 +278,11 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
 
     try {
       // In mock mode, handle deletions client-side only
-      // Signal deletion to parent component (id: -1 is the signal)
+      // Signal deletion to parent component using a special marker
       const companyToDelete = prospects.find(p => p.id === id);
       if (companyToDelete) {
-        onProspectUpdate({ ...companyToDelete, id: -1 } as Company);
+        // Use domain as the deletion marker since it's unique
+        onProspectUpdate({ ...companyToDelete, id, status: 'Lost', domain: `__DELETE_${id}__` } as Company);
         toast.success('Company deleted successfully');
       }
       
@@ -740,8 +741,6 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
           }}
           onDelete={(id) => {
             handleDeleteCompany(id);
-            // Remove from list
-            onProspectUpdate({ ...detailModalCompany, id: -1 } as Company); // Signal deletion
             setDetailModalCompany(null);
           }}
         />
