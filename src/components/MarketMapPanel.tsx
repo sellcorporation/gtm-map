@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import ProspectsTab from './ProspectsTab';
 import ClustersTab from './ClustersTab';
@@ -21,6 +21,9 @@ export default function MarketMapPanel({
   onStatusUpdate 
 }: MarketMapPanelProps) {
   const [activeTab, setActiveTab] = useState<'prospects' | 'clusters' | 'ads'>('prospects');
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [batchSize, setBatchSize] = useState(10);
 
   const handleExportCSV = async () => {
     try {
@@ -68,6 +71,36 @@ export default function MarketMapPanel({
     } catch (error) {
       console.error('Export failed:', error);
       toast.error('Failed to export CSV');
+    }
+  };
+
+  const handleGenerateMore = async () => {
+    setIsGenerating(true);
+    
+    try {
+      const response = await fetch('/api/generate-more', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchSize,
+          existingProspects: prospects.map(p => ({ id: p.id, quality: p.quality, icpScore: p.icpScore })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate prospects');
+      }
+
+      toast.success(`Generating ${batchSize} more prospects...`);
+      setShowGenerateDialog(false);
+      
+      // Reload to see new prospects
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+      console.error('Generate more failed:', error);
+      toast.error('Failed to generate more prospects');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -146,6 +179,13 @@ export default function MarketMapPanel({
           <h2 className="text-xl font-semibold text-gray-900">Market Map</h2>
           <div className="flex space-x-2">
             <button
+              onClick={() => setShowGenerateDialog(true)}
+              className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Generate More
+            </button>
+            <button
               onClick={handleExportCSV}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
@@ -162,6 +202,59 @@ export default function MarketMapPanel({
           </div>
         </div>
       </div>
+
+      {/* Generate More Dialog */}
+      {showGenerateDialog && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative mx-auto p-6 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Generate More Prospects</h3>
+              <button
+                onClick={() => setShowGenerateDialog(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Batch Size
+              </label>
+              <select
+                value={batchSize}
+                onChange={(e) => setBatchSize(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value={10}>10 prospects</option>
+                <option value={50}>50 prospects</option>
+                <option value={100}>100 prospects</option>
+                <option value={500}>500 prospects</option>
+                <option value={1000}>1000 prospects</option>
+              </select>
+              <p className="mt-2 text-xs text-gray-500">
+                The system will use your quality feedback to find similar high-quality prospects.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowGenerateDialog(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerateMore}
+                disabled={isGenerating}
+                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? 'Generating...' : 'Generate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

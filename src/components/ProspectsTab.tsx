@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Company, Evidence, DecisionMaker } from '@/types';
 
@@ -150,6 +150,36 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
     }
   };
 
+  const updateProspectQuality = async (prospectId: number, quality: 'excellent' | 'good' | 'poor' | null) => {
+    try {
+      const response = await fetch('/api/quality', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: prospectId,
+          quality,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update quality');
+      }
+
+      toast.success('Feedback saved');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating quality:', error);
+      toast.error('Failed to save feedback');
+    }
+  };
+
+  const getQualityIcon = (quality: string | null | undefined) => {
+    if (quality === 'excellent') return <ThumbsUp className="h-4 w-4 text-green-600 fill-green-600" />;
+    if (quality === 'good') return <ThumbsUp className="h-4 w-4 text-blue-600" />;
+    if (quality === 'poor') return <ThumbsDown className="h-4 w-4 text-red-600 fill-red-600" />;
+    return <Minus className="h-4 w-4 text-gray-400" />;
+  };
+
   if (prospects.length === 0) {
     return (
       <div className="text-center py-12">
@@ -181,6 +211,9 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
               </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Quality
               </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
@@ -251,6 +284,24 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
                     <option value="Lost">Lost</option>
                   </select>
                 </td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => updateProspectQuality(prospect.id, prospect.quality === 'excellent' ? null : 'excellent')}
+                      className={`p-1 rounded hover:bg-green-50 ${prospect.quality === 'excellent' ? 'bg-green-50' : ''}`}
+                      title="Excellent prospect"
+                    >
+                      <ThumbsUp className={`h-3.5 w-3.5 ${prospect.quality === 'excellent' ? 'text-green-600 fill-green-600' : 'text-gray-400'}`} />
+                    </button>
+                    <button
+                      onClick={() => updateProspectQuality(prospect.id, prospect.quality === 'poor' ? null : 'poor')}
+                      className={`p-1 rounded hover:bg-red-50 ${prospect.quality === 'poor' ? 'bg-red-50' : ''}`}
+                      title="Poor prospect"
+                    >
+                      <ThumbsDown className={`h-3.5 w-3.5 ${prospect.quality === 'poor' ? 'text-red-600 fill-red-600' : 'text-gray-400'}`} />
+                    </button>
+                  </div>
+                </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                   <button
                     onClick={() => openEvidenceModal(prospect)}
@@ -266,7 +317,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
               {/* Expandable Decision Makers Row */}
               {isExpanded && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-4 bg-gray-50">
+                  <td colSpan={8} className="px-3 py-4 bg-gray-50">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-medium text-gray-900 flex items-center">
