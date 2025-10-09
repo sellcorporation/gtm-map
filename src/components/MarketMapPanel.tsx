@@ -12,13 +12,15 @@ interface MarketMapPanelProps {
   clusters: Cluster[];
   ads: Ad[];
   onStatusUpdate: (id: number, status: string) => Promise<void>;
+  onProspectUpdate: (updatedProspect: Company) => void;
 }
 
 export default function MarketMapPanel({ 
   prospects, 
   clusters, 
   ads, 
-  onStatusUpdate 
+  onStatusUpdate,
+  onProspectUpdate
 }: MarketMapPanelProps) {
   const [activeTab, setActiveTab] = useState<'prospects' | 'clusters' | 'ads'>('prospects');
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
@@ -91,11 +93,8 @@ export default function MarketMapPanel({
         throw new Error('Failed to generate prospects');
       }
 
-      toast.success(`Generating ${batchSize} more prospects...`);
+      toast.info('Generate More feature is in development. Will be available soon!');
       setShowGenerateDialog(false);
-      
-      // Reload to see new prospects
-      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error('Generate more failed:', error);
       toast.error('Failed to generate more prospects');
@@ -281,7 +280,11 @@ export default function MarketMapPanel({
       {/* Tab Content */}
       <div className="p-6">
         {activeTab === 'prospects' && (
-          <ProspectsTab prospects={prospects} onStatusUpdate={onStatusUpdate} />
+          <ProspectsTab 
+            prospects={prospects} 
+            onStatusUpdate={onStatusUpdate}
+            onProspectUpdate={onProspectUpdate}
+          />
         )}
         {activeTab === 'clusters' && (
           <ClustersTab clusters={clusters} ads={ads} />

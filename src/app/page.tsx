@@ -23,6 +23,7 @@ export default function HomePage() {
   // Load existing data on mount
   useEffect(() => {
     loadExistingData();
+    restoreAnalysisState();
   }, []);
 
   const loadExistingData = async () => {
@@ -53,6 +54,33 @@ export default function HomePage() {
     }
   };
 
+  const restoreAnalysisState = () => {
+    try {
+      const savedStep = localStorage.getItem('gtm-analysis-step');
+      const savedICP = localStorage.getItem('gtm-icp');
+      const savedWebsiteUrl = localStorage.getItem('gtm-website-url');
+      const savedCustomers = localStorage.getItem('gtm-customers');
+      
+      if (savedStep && savedStep !== 'input') {
+        setAnalysisStep(savedStep as 'input' | 'icp-review' | 'results');
+      }
+      
+      if (savedICP) {
+        setExtractedICP(JSON.parse(savedICP));
+      }
+      
+      if (savedWebsiteUrl) {
+        setWebsiteUrl(savedWebsiteUrl);
+      }
+      
+      if (savedCustomers) {
+        setCustomers(JSON.parse(savedCustomers));
+      }
+    } catch (error) {
+      console.error('Error restoring analysis state:', error);
+    }
+  };
+
   const handleExtractICP = async (url: string, customerList: Customer[]) => {
     setIsLoading(true);
     setWebsiteUrl(url);
@@ -78,6 +106,12 @@ export default function HomePage() {
       
       setExtractedICP(data.icp);
       setAnalysisStep('icp-review');
+
+      // Save ICP and analysis state to localStorage
+      localStorage.setItem('gtm-icp', JSON.stringify(data.icp));
+      localStorage.setItem('gtm-website-url', url);
+      localStorage.setItem('gtm-customers', JSON.stringify(customerList));
+      localStorage.setItem('gtm-analysis-step', 'icp-review');
 
       // Show info message if using mock data
       if (data.mockData) {
@@ -135,6 +169,8 @@ export default function HomePage() {
         clusters: data.clusters,
         ads: data.ads,
       }));
+      localStorage.setItem('gtm-icp', JSON.stringify(confirmedICP));
+      localStorage.setItem('gtm-analysis-step', 'results');
 
       // Show info message if using mock data
       if (data.mockData) {
@@ -155,6 +191,28 @@ export default function HomePage() {
   const handleBackToInput = () => {
     setAnalysisStep('input');
     setExtractedICP(null);
+    localStorage.setItem('gtm-analysis-step', 'input');
+  };
+
+  const handleClearAnalysis = () => {
+    // Clear all stored data
+    localStorage.removeItem('gtm-data');
+    localStorage.removeItem('gtm-icp');
+    localStorage.removeItem('gtm-website-url');
+    localStorage.removeItem('gtm-customers');
+    localStorage.removeItem('gtm-analysis-step');
+    
+    // Reset state
+    setProspects([]);
+    setClusters([]);
+    setAds([]);
+    setHasData(false);
+    setAnalysisStep('input');
+    setExtractedICP(null);
+    setWebsiteUrl('');
+    setCustomers([]);
+    
+    toast.success('Analysis cleared');
   };
 
   const handleStatusUpdate = async (id: number, status: string) => {
@@ -196,14 +254,41 @@ export default function HomePage() {
     }
   };
 
+  const handleProspectUpdate = (updatedProspect: Company) => {
+    // Update prospects state
+    setProspects(prev =>
+      prev.map(p => p.id === updatedProspect.id ? updatedProspect : p)
+    );
+
+    // Update localStorage
+    const updatedProspects = prospects.map(p => 
+      p.id === updatedProspect.id ? updatedProspect : p
+    );
+    localStorage.setItem('gtm-data', JSON.stringify({
+      prospects: updatedProspects,
+      clusters,
+      ads,
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Go-To-Market Map</h1>
-          <p className="mt-2 text-lg text-gray-600">
-            AI-powered competitor expansion CRM for B2B teams
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Go-To-Market Map</h1>
+            <p className="mt-2 text-lg text-gray-600">
+              AI-powered competitor expansion CRM for B2B teams
+            </p>
+          </div>
+          {(hasData || extractedICP || analysisStep !== 'input') && (
+            <button
+              onClick={handleClearAnalysis}
+              className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+            >
+              Clear & Start Fresh
+            </button>
+          )}
         </div>
 
         {analysisStep === 'input' && (
@@ -273,6 +358,7 @@ export default function HomePage() {
               clusters={clusters}
               ads={ads}
               onStatusUpdate={handleStatusUpdate}
+              onProspectUpdate={handleProspectUpdate}
             />
           </div>
         )}

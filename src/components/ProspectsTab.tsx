@@ -8,9 +8,10 @@ import type { Company, Evidence, DecisionMaker } from '@/types';
 interface ProspectsTabProps {
   prospects: Company[];
   onStatusUpdate: (id: number, status: string) => Promise<void>;
+  onProspectUpdate: (updatedProspect: Company) => void;
 }
 
-export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTabProps) {
+export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpdate }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -93,12 +94,14 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
 
       const data = await response.json();
       
-      // Update the prospect in the parent component
-      // For now, we'll just refresh or show success
-      toast.success('Decision makers generated!');
+      // Update the prospect with new decision makers
+      const updatedProspect = {
+        ...prospect,
+        decisionMakers: data.decisionMakers,
+      };
       
-      // Force a page refresh to get updated data
-      window.location.reload();
+      onProspectUpdate(updatedProspect);
+      toast.success('Decision makers generated!');
     } catch (error) {
       console.error('Error generating decision makers:', error);
       toast.error('Failed to generate decision makers');
@@ -112,7 +115,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
   };
 
   const updateDecisionMakerStatus = async (
-    prospectId: number,
+    prospect: Company,
     dmName: string,
     status: DecisionMaker['contactStatus']
   ) => {
@@ -121,7 +124,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyId: prospectId,
+          companyId: prospect.id,
           decisionMakerName: dmName,
           contactStatus: status,
         }),
@@ -131,8 +134,21 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
         throw new Error('Failed to update status');
       }
 
+      const data = await response.json();
+      
+      // Update the prospect with updated decision maker
+      const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+      const updatedDMs = decisionMakers.map(dm => 
+        dm.name === dmName ? data.decisionMaker : dm
+      );
+      
+      const updatedProspect = {
+        ...prospect,
+        decisionMakers: updatedDMs,
+      };
+      
+      onProspectUpdate(updatedProspect);
       toast.success('Contact status updated');
-      window.location.reload();
     } catch (error) {
       console.error('Error updating decision maker status:', error);
       toast.error('Failed to update status');
@@ -150,13 +166,13 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
     }
   };
 
-  const updateProspectQuality = async (prospectId: number, quality: 'excellent' | 'good' | 'poor' | null) => {
+  const updateProspectQuality = async (prospect: Company, quality: 'excellent' | 'good' | 'poor' | null) => {
     try {
       const response = await fetch('/api/quality', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyId: prospectId,
+          companyId: prospect.id,
           quality,
         }),
       });
@@ -165,8 +181,14 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
         throw new Error('Failed to update quality');
       }
 
+      // Update the prospect with new quality
+      const updatedProspect = {
+        ...prospect,
+        quality,
+      };
+      
+      onProspectUpdate(updatedProspect);
       toast.success('Feedback saved');
-      window.location.reload();
     } catch (error) {
       console.error('Error updating quality:', error);
       toast.error('Failed to save feedback');
@@ -287,14 +309,14 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
                 <td className="px-3 py-3 whitespace-nowrap">
                   <div className="flex items-center space-x-1">
                     <button
-                      onClick={() => updateProspectQuality(prospect.id, prospect.quality === 'excellent' ? null : 'excellent')}
+                      onClick={() => updateProspectQuality(prospect, prospect.quality === 'excellent' ? null : 'excellent')}
                       className={`p-1 rounded hover:bg-green-50 ${prospect.quality === 'excellent' ? 'bg-green-50' : ''}`}
                       title="Excellent prospect"
                     >
                       <ThumbsUp className={`h-3.5 w-3.5 ${prospect.quality === 'excellent' ? 'text-green-600 fill-green-600' : 'text-gray-400'}`} />
                     </button>
                     <button
-                      onClick={() => updateProspectQuality(prospect.id, prospect.quality === 'poor' ? null : 'poor')}
+                      onClick={() => updateProspectQuality(prospect, prospect.quality === 'poor' ? null : 'poor')}
                       className={`p-1 rounded hover:bg-red-50 ${prospect.quality === 'poor' ? 'bg-red-50' : ''}`}
                       title="Poor prospect"
                     >
@@ -347,7 +369,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
                                 <select
                                   value={dm.contactStatus}
                                   onChange={(e) => updateDecisionMakerStatus(
-                                    prospect.id,
+                                    prospect,
                                     dm.name,
                                     e.target.value as DecisionMaker['contactStatus']
                                   )}
