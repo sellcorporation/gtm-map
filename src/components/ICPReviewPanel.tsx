@@ -72,7 +72,7 @@ export default function ICPReviewPanel({
               value={editedICP.industries.join(', ')}
               onChange={(e) => handleArrayFieldChange('industries', e.target.value)}
               placeholder="e.g., SaaS, FinTech, Healthcare"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           ) : (
@@ -103,7 +103,7 @@ export default function ICPReviewPanel({
               onChange={(e) => handleArrayFieldChange('pains', e.target.value)}
               placeholder="e.g., Manual processes, Data silos, Poor visibility"
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           ) : (
@@ -132,7 +132,7 @@ export default function ICPReviewPanel({
               value={editedICP.buyerRoles.join(', ')}
               onChange={(e) => handleArrayFieldChange('buyerRoles', e.target.value)}
               placeholder="e.g., CTO, VP Engineering, Product Manager"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           ) : (
@@ -187,7 +187,7 @@ export default function ICPReviewPanel({
                 value={editedICP.firmographics.geo}
                 onChange={(e) => handleFieldChange('firmographics', { ...editedICP.firmographics, geo: e.target.value })}
                 placeholder="e.g., North America, Europe, Global"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 disabled={isLoading}
               />
             ) : (

@@ -146,7 +146,7 @@ export default function CompanyDetailModal({
                 type="text"
                 value={editedCompany.name}
                 onChange={(e) => setEditedCompany({ ...editedCompany, name: e.target.value })}
-                className="text-2xl font-bold text-gray-900 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1"
+                className="text-2xl font-bold text-gray-900 bg-white border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1"
               />
             </div>
             <a
@@ -223,7 +223,7 @@ export default function CompanyDetailModal({
               value={editedCompany.rationale}
               onChange={(e) => setEditedCompany({ ...editedCompany, rationale: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
@@ -238,7 +238,7 @@ export default function CompanyDetailModal({
               onChange={(e) => setEditedCompany({ ...editedCompany, notes: e.target.value })}
               placeholder="Add notes about this company..."
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
@@ -271,7 +271,7 @@ export default function CompanyDetailModal({
                 onChange={(e) => setNewTag(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && addTag()}
                 placeholder="Add tag..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <button
                 onClick={addTag}

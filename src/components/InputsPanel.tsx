@@ -120,7 +120,7 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
           value={websiteUrl}
           onChange={(e) => setWebsiteUrl(e.target.value)}
           placeholder="https://yourcompany.com"
-          className="w-full px-3 py-2 border border-gray-300 color-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           disabled={isLoading}
         />
       </div>
@@ -227,7 +227,7 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
                       value={customer.name}
                       onChange={(e) => updateManualCustomer(index, 'name', e.target.value)}
                       placeholder="e.g., Acme Corp"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       disabled={isLoading}
                     />
                   </div>
@@ -241,7 +241,7 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
                       value={customer.domain}
                       onChange={(e) => updateManualCustomer(index, 'domain', e.target.value)}
                       placeholder="e.g., acme.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       disabled={isLoading}
                     />
                   </div>
@@ -256,7 +256,7 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
                     onChange={(e) => updateManualCustomer(index, 'notes', e.target.value)}
                     placeholder="e.g., Enterprise software company, focuses on CRM solutions, 500+ employees..."
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     disabled={isLoading}
                   />
                 </div>
