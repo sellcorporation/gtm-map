@@ -96,37 +96,123 @@ async function computeICPScore(company: Competitor, icp: ICP): Promise<number> {
 async function createClusters(prospects: Company[], icp: ICP) {
   const clusterMap = new Map<string, number[]>();
   
-  // Group by industry
+  // Create multi-dimensional clusters based on ICP score ranges and characteristics
   prospects.forEach((prospect) => {
-    const industry = icp.industries[0] || 'General';
-    if (!clusterMap.has(industry)) {
-      clusterMap.set(industry, []);
+    // Determine cluster based on ICP score and dominant characteristics
+    let clusterKey = '';
+    let clusterLabel = '';
+    
+    // Primary dimension: ICP Score Range
+    if (prospect.icpScore >= 80) {
+      clusterKey += 'high-';
+      clusterLabel = 'High-Priority ';
+    } else if (prospect.icpScore >= 60) {
+      clusterKey += 'medium-';
+      clusterLabel = 'Medium-Priority ';
+    } else {
+      clusterKey += 'low-';
+      clusterLabel = 'Low-Priority ';
     }
-    clusterMap.get(industry)!.push(prospect.id);
+    
+    // Secondary dimension: Industry (from rationale)
+    const industry = icp.industries.find(ind => 
+      prospect.rationale.toLowerCase().includes(ind.toLowerCase())
+    ) || icp.industries[0] || 'General';
+    
+    clusterKey += industry.toLowerCase().replace(/\s+/g, '-');
+    clusterLabel += industry;
+    
+    if (!clusterMap.has(clusterKey)) {
+      clusterMap.set(clusterKey, []);
+    }
+    clusterMap.get(clusterKey)!.push(prospect.id);
   });
+  
+  // Only create clusters with at least 2 companies (or keep single companies in a catch-all)
+  const validClusters = new Map<string, { companyIds: number[], label: string }>();
+  const singletons: number[] = [];
+  
+  for (const [key, companyIds] of clusterMap) {
+    if (companyIds.length >= 2) {
+      const label = key.split('-').slice(0, -1).map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ') + ' ' + key.split('-').pop()?.split('-').map(w => 
+        w.charAt(0).toUpperCase() + w.slice(1)
+      ).join(' ');
+      
+      validClusters.set(key, { companyIds, label });
+    } else {
+      singletons.push(...companyIds);
+    }
+  }
+  
+  // Create a catch-all cluster for singletons if there are any
+  if (singletons.length > 0) {
+    validClusters.set('other', { 
+      companyIds: singletons, 
+      label: 'Other Prospects' 
+    });
+  }
   
   const clusterRecords = [];
   const adRecords = [];
   
-  for (const [label, companyIds] of clusterMap) {
+  for (const [key, { companyIds, label }] of validClusters) {
+    const clusterProspects = prospects.filter(p => companyIds.includes(p.id));
+    
     const avgIcpScore = companyIds.reduce((sum, id) => {
       const prospect = prospects.find(p => p.id === id);
       return sum + (prospect?.icpScore || 0);
     }, 0) / companyIds.length;
     
+    const avgConfidence = companyIds.reduce((sum, id) => {
+      const prospect = prospects.find(p => p.id === id);
+      return sum + (prospect?.confidence || 0);
+    }, 0) / companyIds.length;
+    
+    // Determine dominant pain points and industries for this cluster
+    const painCounts = new Map<string, number>();
+    const industryCounts = new Map<string, number>();
+    
+    clusterProspects.forEach(prospect => {
+      icp.pains.forEach(pain => {
+        if (prospect.rationale.toLowerCase().includes(pain.toLowerCase())) {
+          painCounts.set(pain, (painCounts.get(pain) || 0) + 1);
+        }
+      });
+      
+      icp.industries.forEach(industry => {
+        if (prospect.rationale.toLowerCase().includes(industry.toLowerCase())) {
+          industryCounts.set(industry, (industryCounts.get(industry) || 0) + 1);
+        }
+      });
+    });
+    
+    const dominantPain = Array.from(painCounts.entries())
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || icp.pains[0];
+    
+    const dominantIndustry = Array.from(industryCounts.entries())
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || icp.industries[0];
+    
     const cluster = await db.insert(clusters).values({
       label,
-      criteria: { industry: label, avgIcpScore },
+      criteria: { 
+        avgIcpScore: Math.round(avgIcpScore),
+        avgConfidence: Math.round(avgConfidence),
+        dominantIndustry,
+        dominantPain,
+        companyCount: companyIds.length
+      },
       companyIds,
     }).returning();
     
     clusterRecords.push(cluster[0]);
     
-    // Generate ad copy for this cluster
+    // Generate ad copy for this cluster using dominant characteristics
     const { adCopy } = await generateAdCopy(
-      label,
-      icp.pains,
-      icp.industries,
+      dominantIndustry,
+      [dominantPain],
+      [dominantIndustry],
       icp.buyerRoles
     );
     

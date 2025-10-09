@@ -57,7 +57,7 @@ if (isMockMode) {
     }),
     update: (table: MockTable) => ({
       set: (data: Record<string, unknown>) => ({
-        where: (condition: Record<string, unknown>) => ({
+        where: (condition: unknown) => ({
           returning: () => {
             const tableName = table.name || table;
             let tableData: Record<string, unknown>[] = [];
@@ -65,11 +65,34 @@ if (isMockMode) {
             else if (tableName === 'clusters') tableData = mockData.clusters;
             else if (tableName === 'ads') tableData = mockData.ads;
             
-            const index = tableData.findIndex((item) => item.id === condition.id);
+            // Extract ID from drizzle-orm eq() condition
+            // Drizzle's eq() returns an object with right/left sides
+            // The right side contains the value we're comparing against
+            let targetId: number | undefined;
+            
+            if (condition && typeof condition === 'object') {
+              // Try different possible structures
+              if ('right' in condition && condition.right && typeof condition.right === 'object') {
+                const right = condition.right as Record<string, unknown>;
+                if ('value' in right) {
+                  targetId = right.value as number;
+                }
+              } else if ('value' in condition) {
+                targetId = (condition as { value: number }).value;
+              }
+            }
+            
+            // Find and update the matching record
+            const index = tableData.findIndex((item) => {
+              return targetId !== undefined && item.id === targetId;
+            });
+            
             if (index !== -1) {
               tableData[index] = { ...tableData[index], ...data };
               return [tableData[index]];
             }
+            
+            console.warn('[Mock DB] Could not find record to update, targetId:', targetId);
             return [];
           }
         })

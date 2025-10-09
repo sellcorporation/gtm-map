@@ -27,6 +27,16 @@ export interface Evidence {
   snippet: string;
 }
 
+export interface DecisionMaker {
+  name: string;
+  role: string;
+  linkedin?: string;
+  email?: string;
+  phone?: string;
+  contactStatus: 'Not Contacted' | 'Attempted' | 'Connected' | 'Responded' | 'Unresponsive';
+  notes?: string;
+}
+
 export interface SearchResult {
   title: string;
   snippet: string;

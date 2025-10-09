@@ -186,3 +186,91 @@ export async function generateAdCopy(
     return { adCopy: generateMockAdCopy(clusterLabel), isMock: true };
   }
 }
+
+// Decision Maker Schema
+const DecisionMakerSchema = z.object({
+  decisionMakers: z.array(z.object({
+    name: z.string(),
+    role: z.string(),
+    linkedin: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+  }))
+});
+
+// Mock decision makers for testing
+function generateMockDecisionMakers(companyName: string, buyerRoles: string[]): Array<{
+  name: string;
+  role: string;
+  linkedin?: string;
+  email?: string;
+  contactStatus: 'Not Contacted' | 'Attempted' | 'Connected' | 'Responded' | 'Unresponsive';
+}> {
+  const domain = companyName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+  return buyerRoles.slice(0, 3).map((role, i) => ({
+    name: `[Demo] ${role} at ${companyName}`,
+    role,
+    linkedin: `https://linkedin.com/in/demo-${role.toLowerCase().replace(/\s+/g, '-')}-${i}`,
+    email: `${role.toLowerCase().replace(/\s+/g, '.')}@${domain}`,
+    contactStatus: 'Not Contacted' as const,
+  }));
+}
+
+// Generate decision makers for a company using AI
+export async function generateDecisionMakers(
+  companyName: string,
+  companyDomain: string,
+  buyerRoles: string[]
+): Promise<{
+  decisionMakers: Array<{
+    name: string;
+    role: string;
+    linkedin?: string;
+    email?: string;
+    phone?: string;
+    contactStatus: 'Not Contacted' | 'Attempted' | 'Connected' | 'Responded' | 'Unresponsive';
+  }>;
+  isMock: boolean;
+}> {
+  const DECISION_MAKERS_PROMPT = `You are a B2B lead research assistant. Generate likely decision makers for the company "${companyName}" (${companyDomain}).
+
+Based on the target buyer roles: ${buyerRoles.join(', ')}
+
+Generate 2-4 realistic decision makers who would be involved in purchasing decisions. For each:
+
+1. Create a realistic full name (first and last name)
+2. Assign one of the provided buyer roles
+3. Generate a likely LinkedIn URL (format: https://linkedin.com/in/firstname-lastname)
+4. Generate a likely email address using common patterns (firstname.lastname@domain, f.lastname@domain, etc.)
+5. Only include phone if you have high confidence (leave empty otherwise)
+
+Make the names diverse and realistic. Use the company domain for email addresses.
+
+Return a JSON object with a "decisionMakers" array.`;
+
+  try {
+    const { object } = await generateObject({
+      model,
+      schema: DecisionMakerSchema,
+      prompt: DECISION_MAKERS_PROMPT,
+      temperature: 0.7,
+    });
+    
+    // Add default contact status
+    const decisionMakers = object.decisionMakers.map(dm => ({
+      ...dm,
+      contactStatus: 'Not Contacted' as const,
+    }));
+    
+    return { decisionMakers, isMock: false };
+  } catch (error) {
+    console.error('Error generating decision makers:', error);
+    
+    // Fall back to mock data
+    console.log('OpenAI error occurred, using mock decision makers');
+    return { 
+      decisionMakers: generateMockDecisionMakers(companyName, buyerRoles), 
+      isMock: true 
+    };
+  }
+}

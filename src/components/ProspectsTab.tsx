@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { Eye } from 'lucide-react';
-import type { Company, Evidence } from '@/types';
+import React, { useState } from 'react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin } from 'lucide-react';
+import { toast } from 'sonner';
+import type { Company, Evidence, DecisionMaker } from '@/types';
 
 interface ProspectsTabProps {
   prospects: Company[];
@@ -12,6 +13,8 @@ interface ProspectsTabProps {
 export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [loadingDecisionMakers, setLoadingDecisionMakers] = useState<Set<number>>(new Set());
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
@@ -48,6 +51,105 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
     return 'text-red-600';
   };
 
+  const getScoreTooltip = (score: number) => {
+    if (score >= 80) {
+      return 'Excellent Match (80-100): This prospect closely aligns with your ICP across industries, pain points, and buyer roles. High priority for outreach.';
+    }
+    if (score >= 60) {
+      return 'Good Match (60-79): This prospect matches some key ICP criteria. Worth researching further before outreach.';
+    }
+    if (score >= 40) {
+      return 'Moderate Match (40-59): This prospect has limited alignment with your ICP. Consider if there are other strategic reasons to pursue.';
+    }
+    return 'Weak Match (0-39): This prospect shows minimal alignment with your ICP. May not be worth immediate attention.';
+  };
+
+  const toggleRow = (prospectId: number) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(prospectId)) {
+      newExpanded.delete(prospectId);
+    } else {
+      newExpanded.add(prospectId);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  const generateDecisionMakers = async (prospect: Company) => {
+    setLoadingDecisionMakers(prev => new Set(prev).add(prospect.id));
+    
+    try {
+      const response = await fetch('/api/decision-makers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: prospect.id,
+          buyerRoles: ['CEO', 'CTO', 'VP Sales', 'Head of Marketing'], // Default roles
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate decision makers');
+      }
+
+      const data = await response.json();
+      
+      // Update the prospect in the parent component
+      // For now, we'll just refresh or show success
+      toast.success('Decision makers generated!');
+      
+      // Force a page refresh to get updated data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error generating decision makers:', error);
+      toast.error('Failed to generate decision makers');
+    } finally {
+      setLoadingDecisionMakers(prev => {
+        const next = new Set(prev);
+        next.delete(prospect.id);
+        return next;
+      });
+    }
+  };
+
+  const updateDecisionMakerStatus = async (
+    prospectId: number,
+    dmName: string,
+    status: DecisionMaker['contactStatus']
+  ) => {
+    try {
+      const response = await fetch('/api/decision-makers/update-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: prospectId,
+          decisionMakerName: dmName,
+          contactStatus: status,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update status');
+      }
+
+      toast.success('Contact status updated');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating decision maker status:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
+  const getContactStatusColor = (status: DecisionMaker['contactStatus']) => {
+    switch (status) {
+      case 'Not Contacted': return 'bg-gray-100 text-gray-800';
+      case 'Attempted': return 'bg-yellow-100 text-yellow-800';
+      case 'Connected': return 'bg-blue-100 text-blue-800';
+      case 'Responded': return 'bg-green-100 text-green-800';
+      case 'Unresponsive': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   if (prospects.length === 0) {
     return (
       <div className="text-center py-12">
@@ -58,65 +160,89 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
 
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="w-full overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Domain
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Source Customer
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                Source
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Confidence
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Conf.
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                ICP Score
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                ICP
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {prospects.map((prospect) => (
-              <tr key={prospect.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {prospect.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {prospects.map((prospect) => {
+              const isExpanded = expandedRows.has(prospect.id);
+              const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+              
+              return (
+                <React.Fragment key={prospect.id}>
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-3 py-3">
+                      <button
+                        onClick={() => toggleRow(prospect.id)}
+                        className="flex items-center text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 mr-1 flex-shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 mr-1 flex-shrink-0" />
+                        )}
+                        <span className="max-w-[180px] truncate" title={prospect.name}>
+                          {prospect.name}
+                        </span>
+                      </button>
+                    </td>
+                <td className="px-3 py-3">
                   <a
                     href={prospect.domain.startsWith('http') ? prospect.domain : `https://${prospect.domain}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-sm text-blue-600 hover:text-blue-800 max-w-[180px] truncate block"
+                    title={prospect.domain}
                   >
                     {prospect.domain}
                   </a>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-3 py-3 text-sm text-gray-500 hidden md:table-cell max-w-[150px] truncate" title={prospect.sourceCustomerDomain || '-'}>
                   {prospect.sourceCustomerDomain || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                   {prospect.confidence}%
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`font-medium ${getScoreColor(prospect.icpScore)}`}>
-                    {prospect.icpScore}
-                  </span>
+                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                  <div className="group relative inline-block">
+                    <span className={`font-medium ${getScoreColor(prospect.icpScore)} cursor-help`}>
+                      {prospect.icpScore}
+                    </span>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-64 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg">
+                      {getScoreTooltip(prospect.icpScore)}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 py-3 whitespace-nowrap">
                   <select
                     value={prospect.status}
                     onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(prospect.status)} border-0 focus:ring-2 focus:ring-blue-500`}
+                    className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(prospect.status)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer`}
                   >
                     <option value="New">New</option>
                     <option value="Researching">Researching</option>
@@ -125,17 +251,109 @@ export default function ProspectsTab({ prospects, onStatusUpdate }: ProspectsTab
                     <option value="Lost">Lost</option>
                   </select>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                   <button
                     onClick={() => openEvidenceModal(prospect)}
-                    className="text-blue-600 hover:text-blue-800 flex items-center"
+                    className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
+                    title="View Evidence"
                   >
-                    <Eye className="h-4 w-4 mr-1" />
-                    View Evidence
+                    <Eye className="h-4 w-4" />
+                    <span className="ml-1 hidden lg:inline">Evidence</span>
                   </button>
                 </td>
               </tr>
-            ))}
+              
+              {/* Expandable Decision Makers Row */}
+              {isExpanded && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-4 bg-gray-50">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                          <Users className="h-4 w-4 mr-2" />
+                          Decision Makers
+                        </h4>
+                        {decisionMakers.length === 0 && (
+                          <button
+                            onClick={() => generateDecisionMakers(prospect)}
+                            disabled={loadingDecisionMakers.has(prospect.id)}
+                            className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {loadingDecisionMakers.has(prospect.id) ? 'Generating...' : 'Generate Decision Makers'}
+                          </button>
+                        )}
+                      </div>
+                      
+                      {decisionMakers.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {decisionMakers.map((dm, idx) => (
+                            <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <p className="font-medium text-sm text-gray-900">{dm.name}</p>
+                                  <p className="text-xs text-gray-500">{dm.role}</p>
+                                </div>
+                                <select
+                                  value={dm.contactStatus}
+                                  onChange={(e) => updateDecisionMakerStatus(
+                                    prospect.id,
+                                    dm.name,
+                                    e.target.value as DecisionMaker['contactStatus']
+                                  )}
+                                  className={`text-xs px-2 py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer`}
+                                >
+                                  <option value="Not Contacted">Not Contacted</option>
+                                  <option value="Attempted">Attempted</option>
+                                  <option value="Connected">Connected</option>
+                                  <option value="Responded">Responded</option>
+                                  <option value="Unresponsive">Unresponsive</option>
+                                </select>
+                              </div>
+                              
+                              <div className="space-y-1">
+                                {dm.linkedin && (
+                                  <a
+                                    href={dm.linkedin}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    <Linkedin className="h-3 w-3 mr-1" />
+                                    LinkedIn Profile
+                                  </a>
+                                )}
+                                {dm.email && (
+                                  <a
+                                    href={`mailto:${dm.email}`}
+                                    className="flex items-center text-xs text-gray-600 hover:text-gray-800"
+                                  >
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    {dm.email}
+                                  </a>
+                                )}
+                                {dm.phone && (
+                                  <a
+                                    href={`tel:${dm.phone}`}
+                                    className="flex items-center text-xs text-gray-600 hover:text-gray-800"
+                                  >
+                                    <Phone className="h-3 w-3 mr-1" />
+                                    {dm.phone}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No decision makers generated yet. Click the button above to generate them.</p>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

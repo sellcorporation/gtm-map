@@ -13,6 +13,10 @@ export const companies = pgTable('companies', {
   }).notNull().default('New'),
   rationale: text('rationale').notNull(),
   evidence: json('evidence').notNull(),
+  decisionMakers: json('decision_makers'), // array of DecisionMaker objects
+  quality: text('quality', {
+    enum: ['excellent', 'good', 'poor']
+  }), // for ML feedback
 });
 
 export const clusters = pgTable('clusters', {
