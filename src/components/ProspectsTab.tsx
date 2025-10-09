@@ -86,6 +86,8 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId: prospect.id,
+          companyName: prospect.name,
+          companyDomain: prospect.domain,
           buyerRoles: ['CEO', 'CTO', 'VP Sales', 'Head of Marketing'], // Default roles
         }),
       });
