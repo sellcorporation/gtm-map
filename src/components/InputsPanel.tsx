@@ -18,6 +18,7 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [error, setError] = useState('');
   const [inputMode, setInputMode] = useState<'csv' | 'manual'>('csv');
+  const [uploadedFileName, setUploadedFileName] = useState('');
   const [manualCustomers, setManualCustomers] = useState<Customer[]>(
     initialCustomers.length > 0 ? initialCustomers : [{ name: '', domain: '', notes: '' }]
   );
@@ -46,10 +47,15 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
       return;
     }
 
+    console.log('Parsing CSV file:', file.name);
+    
     Papa.parse(file, {
       header: true,
+      skipEmptyLines: true,
       complete: (results) => {
         try {
+          console.log('CSV parse results:', results);
+          
           const parsedCustomers: Customer[] = (results.data as Record<string, string>[])
             .filter((row) => row.name && row.domain)
             .map((row) => ({
@@ -58,19 +64,26 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
               notes: row.notes?.trim(),
             }));
 
+          console.log('Parsed customers:', parsedCustomers);
+
           if (parsedCustomers.length === 0) {
-            setError('No valid customer data found in CSV');
+            setError('No valid customer data found in CSV. Expected columns: name, domain, notes (optional)');
             return;
           }
 
           setCustomers(parsedCustomers);
+          setManualCustomers(parsedCustomers); // Sync manual state too
+          setUploadedFileName(file.name);
           setError('');
-        } catch {
-          setError('Error parsing CSV file');
+          console.log(`✅ Successfully uploaded ${parsedCustomers.length} customers from CSV`);
+        } catch (err) {
+          console.error('Error parsing CSV:', err);
+          setError('Error parsing CSV file. Please check the format.');
         }
       },
-      error: () => {
-        setError('Error reading CSV file');
+      error: (err) => {
+        console.error('Error reading CSV file:', err);
+        setError('Error reading CSV file. Please try again.');
       },
     });
   }, []);
@@ -197,13 +210,24 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
             className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
               isDragActive
                 ? 'border-blue-400 bg-blue-50'
+                : uploadedFileName
+                ? 'border-green-400 bg-green-50'
                 : 'border-gray-300 hover:border-gray-400'
             } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            <input {...getInputProps()} disabled={isLoading} />
-            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <input {...getInputProps()} disabled={isLoading} style={{ display: 'none' }} />
+            <Upload className={`mx-auto h-12 w-12 mb-4 ${uploadedFileName ? 'text-green-500' : 'text-gray-400'}`} />
             {isDragActive ? (
               <p className="text-blue-600">Drop the CSV file here...</p>
+            ) : uploadedFileName ? (
+              <div>
+                <p className="text-green-700 font-medium mb-2">
+                  ✅ {uploadedFileName}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {customers.length} customer(s) loaded • Click to upload a different file
+                </p>
+              </div>
             ) : (
               <div>
                 <p className="text-gray-600 mb-2">
