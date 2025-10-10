@@ -185,7 +185,7 @@ export async function parseProspectCSV(csvText: string): Promise<ParsedProspect[
           reject(error);
         }
       },
-      error: (error) => {
+      error: (error: Error) => {
         reject(new Error(`CSV parsing failed: ${error.message}`));
       },
     });
