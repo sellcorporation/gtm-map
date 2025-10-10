@@ -15,12 +15,24 @@ interface ICPProfileModalProps {
 export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPProfileModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedICP, setEditedICP] = useState<ICP | null>(icp);
+  
+  // Store raw input strings during edit mode to preserve commas while typing
+  const [inputValues, setInputValues] = useState({
+    industries: '',
+    pains: '',
+    buyerRoles: '',
+  });
 
   // Sync editedICP with icp when modal opens
   useEffect(() => {
     if (isOpen && icp) {
       console.log('ICPProfileModal: Modal opened, setting editedICP');
       setEditedICP(icp);
+      setInputValues({
+        industries: icp.industries.join(', '),
+        pains: icp.pains.join(', '),
+        buyerRoles: icp.buyerRoles.join(', '),
+      });
       setIsEditing(false); // Reset edit mode when reopening
     }
   }, [isOpen, icp]);
@@ -32,35 +44,50 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
   const handleSave = () => {
     if (!editedICP) return;
     
+    // Parse the input values into arrays
+    const industries = inputValues.industries.split(',').map(item => item.trim()).filter(item => item.length > 0);
+    const pains = inputValues.pains.split(',').map(item => item.trim()).filter(item => item.length > 0);
+    const buyerRoles = inputValues.buyerRoles.split(',').map(item => item.trim()).filter(item => item.length > 0);
+    
     // Validate
-    if (editedICP.industries.length === 0) {
+    if (industries.length === 0) {
       toast.error('Please add at least one industry');
       return;
     }
-    if (editedICP.pains.length === 0) {
+    if (pains.length === 0) {
       toast.error('Please add at least one pain point');
       return;
     }
-    if (editedICP.buyerRoles.length === 0) {
+    if (buyerRoles.length === 0) {
       toast.error('Please add at least one buyer role');
       return;
     }
 
-    onUpdate(editedICP);
+    const updatedICP = {
+      ...editedICP,
+      industries,
+      pains,
+      buyerRoles,
+    };
+
+    onUpdate(updatedICP);
     setIsEditing(false);
-    toast.success('ICP Profile updated successfully');
   };
 
   const handleCancel = () => {
     setEditedICP(icp);
+    setInputValues({
+      industries: icp.industries.join(', '),
+      pains: icp.pains.join(', '),
+      buyerRoles: icp.buyerRoles.join(', '),
+    });
     setIsEditing(false);
   };
 
-  const handleArrayFieldChange = (field: 'industries' | 'pains' | 'buyerRoles', value: string) => {
-    const items = value.split(',').map(item => item.trim()).filter(item => item.length > 0);
-    setEditedICP({
-      ...editedICP,
-      [field]: items
+  const handleInputChange = (field: 'industries' | 'pains' | 'buyerRoles', value: string) => {
+    setInputValues({
+      ...inputValues,
+      [field]: value,
     });
   };
 
@@ -125,8 +152,8 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
               </label>
               {isEditing ? (
                 <textarea
-                  value={editedICP.industries.join(', ')}
-                  onChange={(e) => handleArrayFieldChange('industries', e.target.value)}
+                  value={inputValues.industries}
+                  onChange={(e) => handleInputChange('industries', e.target.value)}
                   placeholder="e.g., SaaS, FinTech, Healthcare"
                   className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   rows={2}
@@ -152,8 +179,8 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
               </label>
               {isEditing ? (
                 <textarea
-                  value={editedICP.pains.join(', ')}
-                  onChange={(e) => handleArrayFieldChange('pains', e.target.value)}
+                  value={inputValues.pains}
+                  onChange={(e) => handleInputChange('pains', e.target.value)}
                   placeholder="e.g., Manual processes, High costs, Lack of visibility"
                   className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   rows={3}
@@ -180,8 +207,8 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
               </label>
               {isEditing ? (
                 <textarea
-                  value={editedICP.buyerRoles.join(', ')}
-                  onChange={(e) => handleArrayFieldChange('buyerRoles', e.target.value)}
+                  value={inputValues.buyerRoles}
+                  onChange={(e) => handleInputChange('buyerRoles', e.target.value)}
                   placeholder="e.g., CEO, CTO, VP Sales"
                   className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   rows={2}
