@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, companies, clusters, ads } from '@/lib/db';
+import { db, companies, clusters, ads, userSessions } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 
 async function clearDataHandler(_request: NextRequest) {
@@ -8,9 +8,10 @@ async function clearDataHandler(_request: NextRequest) {
     // Order matters due to foreign key constraints
     await db.delete(ads); // Delete ads first (references clusters)
     await db.delete(clusters); // Delete clusters second (references companies)
-    await db.delete(companies); // Delete companies last
+    await db.delete(companies); // Delete companies third
+    await db.delete(userSessions); // Delete user sessions last
     
-    console.log('All data cleared from database');
+    console.log('All data cleared from database (including user sessions)');
     
     return NextResponse.json({
       success: true,

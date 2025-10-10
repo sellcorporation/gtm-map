@@ -310,15 +310,15 @@ export default function HomePage() {
       localStorage.removeItem('gtm-customers');
       localStorage.removeItem('gtm-analysis-step');
       
-      // Reset state
+      // Reset all state (including input fields)
       setProspects([]);
       setClusters([]);
       setAds([]);
       setHasData(false);
       setAnalysisStep('input');
       setExtractedICP(null);
-      setWebsiteUrl('');
-      setCustomers([]);
+      setWebsiteUrl(''); // Clear website URL input
+      setCustomers([]); // Clear customers list
       
       toast.success('All data cleared from database successfully');
     } catch (error) {
