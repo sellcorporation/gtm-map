@@ -984,15 +984,31 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                   </div>
                 </td>
                 <td className="px-3 py-3">
-                  <a
-                    href={prospect.domain.startsWith('http') ? prospect.domain : `https://${prospect.domain}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-800 max-w-[180px] truncate block"
-                    title={prospect.domain}
-                  >
-                    {prospect.domain}
-                  </a>
+                  {(() => {
+                    const domain = prospect.domain.toLowerCase().trim();
+                    const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
+                    const isInvalid = invalidDomains.includes(domain) || domain.length < 3 || !domain.includes('.');
+                    
+                    if (isInvalid) {
+                      return (
+                        <span className="text-sm text-gray-400 italic" title="Domain not available">
+                          N/A
+                        </span>
+                      );
+                    }
+                    
+                    return (
+                      <a
+                        href={prospect.domain.startsWith('http') ? prospect.domain : `https://${prospect.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:text-blue-800 max-w-[180px] truncate block"
+                        title={prospect.domain}
+                      >
+                        {prospect.domain}
+                      </a>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-3 text-sm text-gray-500 hidden md:table-cell max-w-[150px] truncate" title={prospect.sourceCustomerDomain || '-'}>
                   {prospect.sourceCustomerDomain || '-'}

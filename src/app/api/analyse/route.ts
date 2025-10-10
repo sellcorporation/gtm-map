@@ -302,8 +302,20 @@ async function analyseHandler(request: NextRequest) {
           allCompetitors.push(...competitorsToAdd);
         }
     
+    // Filter out invalid domains first
+    const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
+    const validCompetitors = allCompetitors.filter(competitor => {
+      const domain = competitor.domain.toLowerCase().trim();
+      // Filter out obviously invalid domains
+      if (invalidDomains.includes(domain) || domain.length < 3 || !domain.includes('.')) {
+        sendMessage(`⚠️ Skipping ${competitor.name}: Invalid domain "${competitor.domain}"`);
+        return false;
+      }
+      return true;
+    });
+    
     // Dedupe by domain
-    const uniqueCompetitors = allCompetitors.reduce((acc, competitor) => {
+    const uniqueCompetitors = validCompetitors.reduce((acc, competitor) => {
       const existing = acc.find(c => c.domain === competitor.domain);
       if (!existing) {
         acc.push(competitor);
@@ -423,9 +435,15 @@ async function analyseHandler(request: NextRequest) {
         // Summary message
         const skippedCount = uniqueCompetitors.length - prospectRecords.length;
         if (skippedCount > 0) {
-          sendMessage(`\n📋 Summary: ${prospectRecords.length} new prospects added, ${skippedCount} skipped (duplicates or errors)`);
+          sendMessage(`\n📋 Summary: ${prospectRecords.length} new prospects added, ${skippedCount} skipped (duplicates, invalid domains, or errors)`);
         }
-        sendMessage(`\n🎉 Analysis complete! Total: ${prospectRecords.length} prospects ready.`);
+        
+        // Inform user if we couldn't reach the target
+        if (prospectRecords.length < maxProspects) {
+          sendMessage(`\n⚠️ Note: Generated ${prospectRecords.length} of ${maxProspects} requested prospects. Some competitors had invalid domains or couldn't be analyzed.`);
+        }
+        
+        sendMessage(`\n🎉 Analysis complete! Total: ${prospectRecords.length} prospect(s) ready.`);
 
         // Send final result
         const result = {
