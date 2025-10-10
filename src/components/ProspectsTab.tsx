@@ -40,6 +40,15 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     contactStatus: 'Not Contacted',
   });
   
+  // Manual prospect addition state
+  const [addingManualProspect, setAddingManualProspect] = useState(false);
+  const [manualProspectData, setManualProspectData] = useState({
+    name: '',
+    domain: '',
+    useAI: true, // Option to use AI for analysis
+  });
+  const [isAnalyzingProspect, setIsAnalyzingProspect] = useState(false);
+  
   // ICP Score filter with localStorage persistence
   const [minICPScore, setMinICPScore] = useState<number>(() => {
     if (typeof window !== 'undefined') {
@@ -471,10 +480,129 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     }
   };
 
-  if (prospects.length === 0) {
+  const startAddingManualProspect = () => {
+    setAddingManualProspect(true);
+    setManualProspectData({
+      name: '',
+      domain: '',
+      useAI: true,
+    });
+  };
+
+  const cancelAddingManualProspect = () => {
+    setAddingManualProspect(false);
+    setManualProspectData({
+      name: '',
+      domain: '',
+      useAI: true,
+    });
+  };
+
+  const saveManualProspect = async () => {
+    if (!manualProspectData.name || !manualProspectData.domain) {
+      toast.error('Please enter both company name and domain');
+      return;
+    }
+
+    setIsAnalyzingProspect(true);
+
+    try {
+      let newProspect: Company;
+
+      if (manualProspectData.useAI && icp) {
+        // Use AI to analyze the prospect
+        toast.info('Analyzing prospect with AI...');
+        
+        const response = await fetch('/api/company/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: manualProspectData.name,
+            domain: manualProspectData.domain,
+            icp,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to analyze prospect');
+        }
+
+        const data = await response.json();
+        
+        newProspect = {
+          id: Date.now(), // Temporary ID
+          name: manualProspectData.name,
+          domain: manualProspectData.domain,
+          source: 'expanded' as const,
+          sourceCustomerDomain: null,
+          icpScore: data.icpScore,
+          confidence: data.confidence,
+          status: 'New' as const,
+          rationale: data.rationale,
+          evidence: data.evidence,
+          decisionMakers: null,
+          quality: null,
+          notes: 'Manually added prospect',
+          tags: null,
+          relatedCompanyIds: null,
+        };
+        
+        toast.success('Prospect analyzed and added!');
+      } else {
+        // Add manually without AI analysis
+        newProspect = {
+          id: Date.now(), // Temporary ID
+          name: manualProspectData.name,
+          domain: manualProspectData.domain,
+          source: 'expanded' as const,
+          sourceCustomerDomain: null,
+          icpScore: 50, // Default score
+          confidence: 50, // Default confidence
+          status: 'New' as const,
+          rationale: 'Manually added prospect - no AI analysis performed',
+          evidence: [],
+          decisionMakers: null,
+          quality: null,
+          notes: 'Manually added prospect',
+          tags: null,
+          relatedCompanyIds: null,
+        };
+        
+        toast.success('Prospect added successfully!');
+      }
+
+      // Add to prospects list
+      onProspectUpdate(newProspect);
+      
+      // Update localStorage
+      const savedData = localStorage.getItem('gtm-data');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        parsed.prospects = [...(parsed.prospects || []), newProspect];
+        localStorage.setItem('gtm-data', JSON.stringify(parsed));
+      }
+
+      // Reset form
+      cancelAddingManualProspect();
+    } catch (error) {
+      console.error('Error adding manual prospect:', error);
+      toast.error('Failed to add prospect');
+    } finally {
+      setIsAnalyzingProspect(false);
+    }
+  };
+
+  if (prospects.length === 0 && !addingManualProspect) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">No prospects found. Run an analysis to get started.</p>
+        <p className="text-gray-500 mb-4">No prospects found. Run an analysis to get started.</p>
+        <button
+          onClick={startAddingManualProspect}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+        >
+          <UserPlus className="h-4 w-4 mr-2" />
+          Add Prospect Manually
+        </button>
       </div>
     );
   }
@@ -1064,9 +1192,9 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         </table>
       </div>
 
-      {/* Generate More Prospects Button */}
-      {onGenerateMore && (
-        <div className="mt-6 flex justify-center">
+      {/* Generate More Prospects & Add Manually Buttons */}
+      <div className="mt-6 flex justify-center gap-4">
+        {onGenerateMore && (
           <button
             onClick={onGenerateMore}
             className="inline-flex items-center px-6 py-3 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -1074,6 +1202,119 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
             <Plus className="h-5 w-5 mr-2" />
             Generate More Prospects
           </button>
+        )}
+        <button
+          onClick={startAddingManualProspect}
+          className="inline-flex items-center px-6 py-3 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+        >
+          <UserPlus className="h-5 w-5 mr-2" />
+          Add Prospect Manually
+        </button>
+      </div>
+
+      {/* Manual Prospect Addition Form */}
+      {addingManualProspect && (
+        <div className="mt-6 max-w-2xl mx-auto p-6 bg-white border-2 border-blue-500 rounded-lg shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900 flex items-center">
+              <UserPlus className="h-5 w-5 mr-2 text-blue-600" />
+              Add Prospect Manually
+            </h3>
+            <button
+              onClick={cancelAddingManualProspect}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name *
+              </label>
+              <input
+                type="text"
+                value={manualProspectData.name}
+                onChange={(e) => setManualProspectData({ ...manualProspectData, name: e.target.value })}
+                placeholder="e.g., Acme Corporation"
+                className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={isAnalyzingProspect}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Domain *
+              </label>
+              <input
+                type="text"
+                value={manualProspectData.domain}
+                onChange={(e) => setManualProspectData({ ...manualProspectData, domain: e.target.value })}
+                placeholder="e.g., acme.com"
+                className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={isAnalyzingProspect}
+              />
+              <p className="mt-1 text-xs text-gray-500">Enter domain without https:// or www.</p>
+            </div>
+
+            {icp && (
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useAI"
+                  checked={manualProspectData.useAI}
+                  onChange={(e) => setManualProspectData({ ...manualProspectData, useAI: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  disabled={isAnalyzingProspect}
+                />
+                <label htmlFor="useAI" className="ml-2 block text-sm text-gray-700">
+                  Use AI to analyze this prospect against my ICP
+                  <span className="text-xs text-gray-500 block">
+                    (Fetches website content and calculates ICP score automatically)
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {!icp && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-xs text-yellow-800">
+                  💡 AI analysis not available. Please run an analysis first to extract your ICP profile.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                onClick={cancelAddingManualProspect}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                disabled={isAnalyzingProspect}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveManualProspect}
+                disabled={isAnalyzingProspect || !manualProspectData.name || !manualProspectData.domain}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {isAnalyzingProspect ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Add Prospect
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
