@@ -434,70 +434,123 @@ async function analyseHandler(request: NextRequest) {
               continue;
             }
             
-            // If website fetch failed, try to find the correct domain
+            // If website fetch failed, search the web for the correct domain
             if (errorMessage.includes('Failed to fetch website') || errorMessage.includes('fetch failed')) {
-              sendMessage(`⚠️ Domain ${competitor.domain} failed to load, searching for correct domain...`);
+              sendMessage(`⚠️ Domain ${competitor.domain} failed to load, searching web for correct domain...`);
               
-              // Search for the correct domain using Tavily
-              try {
+              // Function to search for correct domain using multiple strategies
+              const findCorrectDomain = async (companyName: string): Promise<string | null> => {
                 const tavilyKey = process.env.TAVILY_API_KEY;
-                if (tavilyKey) {
-                  const searchQuery = `${competitor.name} official website`;
-                  const response = await fetch('https://api.tavily.com/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      api_key: tavilyKey,
-                      query: searchQuery,
-                      max_results: 3,
-                    }),
-                  });
+                if (!tavilyKey) {
+                  sendMessage(`⚠️ No search API key available`);
+                  return null;
+                }
+                
+                // Try multiple search queries in order of specificity
+                const searchQueries = [
+                  `${companyName} official website`,
+                  `${companyName} company website`,
+                  `${companyName} home page`,
+                ];
+                
+                for (const query of searchQueries) {
+                  try {
+                    sendMessage(`🔍 Searching web: "${query}"...`);
+                    const response = await fetch('https://api.tavily.com/search', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        api_key: tavilyKey,
+                        query: query,
+                        max_results: 5,
+                        search_depth: 'basic',
+                      }),
+                    });
 
-                  if (response.ok) {
-                    const data = await response.json();
-                    if (data.results && data.results.length > 0) {
-                      const url = data.results[0].url;
-                      const correctedDomain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
-                      sendMessage(`🔍 Found correct domain: ${correctedDomain}`);
-                      
-                      // Retry with corrected domain
-                      try {
-                        sendMessage(`📡 Fetching website content from ${correctedDomain}...`);
-                        const websiteContent = await fetchWebsite(correctedDomain);
+                    if (response.ok) {
+                      const data = await response.json();
+                      if (data.results && data.results.length > 0) {
+                        // Filter out aggregator/directory sites
+                        const aggregators = ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com', 
+                                            'clutch.co', 'yelp.com', 'trustpilot.com', 'ricsfirms.com',
+                                            'wikipedia.org', 'crunchbase.com'];
                         
-                        sendMessage(`🧠 AI analyzing workflow fit for ${competitor.name}...`);
-                        const analysis = await analyzeWebsiteAgainstICP(
-                          websiteContent,
-                          competitor.name,
-                          correctedDomain,
-                          icp
-                        );
-                        
-                        sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}% (domain corrected)`);
-                        
-                        const prospect = await db.insert(companies).values({
-                          userId: 'demo-user',
-                          name: competitor.name,
-                          domain: correctedDomain, // Use corrected domain
-                          source: 'expanded',
-                          sourceCustomerDomain: customers[0]?.domain,
-                          icpScore: analysis.icpScore,
-                          confidence: analysis.confidence,
-                          status: 'New',
-                          rationale: analysis.rationale,
-                          evidence: analysis.evidence,
-                        }).returning();
-                        
-                        prospectRecords.push(prospect[0]);
-                        continue; // Success with corrected domain, move to next
-                      } catch (retryError) {
-                        sendMessage(`⚠️ Corrected domain also failed, using fallback...`);
+                        for (const result of data.results) {
+                          const url = result.url;
+                          const domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+                          
+                          // Skip aggregator sites
+                          const isAggregator = aggregators.some(agg => domain.includes(agg));
+                          if (isAggregator) {
+                            continue;
+                          }
+                          
+                          // Validate domain looks reasonable
+                          if (domain.length >= 5 && domain.includes('.')) {
+                            sendMessage(`🌐 Found potential official website: ${domain}`);
+                            return domain;
+                          }
+                        }
                       }
                     }
+                  } catch (searchErr) {
+                    // Continue to next query
+                    continue;
                   }
                 }
+                
+                return null;
+              };
+              
+              // Search for correct domain
+              try {
+                const correctedDomain = await findCorrectDomain(competitor.name);
+                
+                if (correctedDomain) {
+                  sendMessage(`✅ Found correct domain: ${correctedDomain}`);
+                  
+                  // Verify the domain is different and actually works
+                  if (correctedDomain !== competitor.domain) {
+                    try {
+                      sendMessage(`📡 Fetching website content from ${correctedDomain}...`);
+                      const websiteContent = await fetchWebsite(correctedDomain);
+                      
+                      sendMessage(`🧠 AI analyzing workflow fit for ${competitor.name}...`);
+                      const analysis = await analyzeWebsiteAgainstICP(
+                        websiteContent,
+                        competitor.name,
+                        correctedDomain,
+                        icp
+                      );
+                      
+                      sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}% (domain corrected)`);
+                      
+                      const prospect = await db.insert(companies).values({
+                        userId: 'demo-user',
+                        name: competitor.name,
+                        domain: correctedDomain, // Use corrected domain
+                        source: 'expanded',
+                        sourceCustomerDomain: customers[0]?.domain,
+                        icpScore: analysis.icpScore,
+                        confidence: analysis.confidence,
+                        status: 'New',
+                        rationale: analysis.rationale,
+                        evidence: analysis.evidence,
+                      }).returning();
+                      
+                      prospectRecords.push(prospect[0]);
+                      continue; // Success with corrected domain, move to next
+                    } catch (retryError) {
+                      sendMessage(`⚠️ Corrected domain (${correctedDomain}) also failed to load`);
+                    }
+                  } else {
+                    sendMessage(`⚠️ Found domain is same as original, cannot retry`);
+                  }
+                } else {
+                  sendMessage(`⚠️ Could not find correct domain via web search`);
+                }
               } catch (searchError) {
-                sendMessage(`⚠️ Domain search failed, using fallback...`);
+                sendMessage(`⚠️ Domain search failed: ${searchError instanceof Error ? searchError.message : 'Unknown error'}`);
               }
             }
             
