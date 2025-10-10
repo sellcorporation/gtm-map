@@ -33,12 +33,6 @@ const AdCopySchema = z.object({
   cta: z.string(),
 });
 
-const WebsiteAnalysisSchema = z.object({
-  rationale: z.string().describe('Why this company matches the ICP'),
-  confidence: z.number().min(0).max(100).describe('Confidence in this match (0-100)'),
-  evidenceSnippets: z.array(z.string()).max(3).describe('Key evidence snippets from the website'),
-});
-
 // Mock ICP for testing when OpenAI quota is exceeded
 function generateMockICP(): ICP {
   return {

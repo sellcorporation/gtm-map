@@ -75,11 +75,12 @@ async function computeICPScore(company: Competitor, icp: ICP): Promise<number> {
   );
   if (industryMatch) score += 40;
   
-  // Pain point match (30 points)
-  const painMatch = icp.pains.some(pain => 
-    company.rationale.toLowerCase().includes(pain.toLowerCase())
+  // Workflow match (30 points) - changed from pains
+  const workflows = icp.workflows || [];
+  const workflowMatch = workflows.some(workflow => 
+    company.rationale.toLowerCase().includes(workflow.toLowerCase())
   );
-  if (painMatch) score += 30;
+  if (workflowMatch) score += 30;
   
   // Buyer role match (20 points)
   const roleMatch = icp.buyerRoles.some(role => 
@@ -165,14 +166,16 @@ async function createClusters(prospects: Company[], icp: ICP) {
       return sum + (prospect?.confidence || 0);
     }, 0) / companyIds.length;
     
-    // Determine dominant pain points and industries for this cluster
-    const painCounts = new Map<string, number>();
+    // Determine dominant workflows and industries for this cluster
+    const workflowCounts = new Map<string, number>();
     const industryCounts = new Map<string, number>();
     
+    const workflows = icp.workflows || [];
+    
     clusterProspects.forEach(prospect => {
-      icp.pains.forEach(pain => {
-        if (prospect.rationale.toLowerCase().includes(pain.toLowerCase())) {
-          painCounts.set(pain, (painCounts.get(pain) || 0) + 1);
+      workflows.forEach(workflow => {
+        if (prospect.rationale.toLowerCase().includes(workflow.toLowerCase())) {
+          workflowCounts.set(workflow, (workflowCounts.get(workflow) || 0) + 1);
         }
       });
       
@@ -183,8 +186,8 @@ async function createClusters(prospects: Company[], icp: ICP) {
       });
     });
     
-    const dominantPain = Array.from(painCounts.entries())
-      .sort((a, b) => b[1] - a[1])[0]?.[0] || icp.pains[0];
+    const dominantWorkflow = Array.from(workflowCounts.entries())
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || workflows[0] || '';
     
     const dominantIndustry = Array.from(industryCounts.entries())
       .sort((a, b) => b[1] - a[1])[0]?.[0] || icp.industries[0];
@@ -195,7 +198,7 @@ async function createClusters(prospects: Company[], icp: ICP) {
         avgIcpScore: Math.round(avgIcpScore),
         avgConfidence: Math.round(avgConfidence),
         dominantIndustry,
-        dominantPain,
+        dominantPain: dominantWorkflow, // Store workflow in dominantPain field
         companyCount: companyIds.length
       },
       companyIds,
@@ -206,7 +209,7 @@ async function createClusters(prospects: Company[], icp: ICP) {
     // Generate ad copy for this cluster using dominant characteristics
     const { adCopy } = await generateAdCopy(
       dominantIndustry,
-      [dominantPain],
+      [dominantWorkflow],
       [dominantIndustry],
       icp.buyerRoles
     );
