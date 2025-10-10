@@ -1,20 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus, Edit2, Trash2, Save, X, UserPlus } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
-import type { Company, Evidence, DecisionMaker } from '@/types';
+import type { Company, Evidence, DecisionMaker, ICP } from '@/types';
+
+type SortField = 'name' | 'domain' | 'source' | 'confidence' | 'icpScore' | 'status' | 'quality';
+type SortDirection = 'asc' | 'desc' | null;
 
 interface ProspectsTabProps {
   prospects: Company[];
+  icp?: ICP;
   onStatusUpdate: (id: number, status: string) => Promise<void>;
   onProspectUpdate: (updatedProspect: Company) => void;
   onGenerateMore?: () => void;
   onMarkAsCustomer?: (prospect: Company) => void;
 }
 
-export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer }: ProspectsTabProps) {
+export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -22,6 +26,102 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
   const [detailModalCompany, setDetailModalCompany] = useState<Company | null>(null);
   const [editingDM, setEditingDM] = useState<{ prospectId: number; dmIndex: number } | null>(null);
   const [editedDMData, setEditedDMData] = useState<DecisionMaker | null>(null);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [addingManualDM, setAddingManualDM] = useState<number | null>(null);
+  const [manualDMData, setManualDMData] = useState<DecisionMaker>({
+    name: '',
+    role: '',
+    linkedin: '',
+    email: '',
+    phone: '',
+    contactStatus: 'Not Contacted',
+  });
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Cycle through: asc -> desc -> null
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortDirection(null);
+        setSortField(null);
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    }
+    if (sortDirection === 'asc') {
+      return <ArrowUp className="h-3 w-3 ml-1" />;
+    }
+    return <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
+  const sortedProspects = useMemo(() => {
+    if (!sortField || !sortDirection) {
+      return prospects;
+    }
+
+    const sorted = [...prospects].sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'domain':
+          aValue = a.domain.toLowerCase();
+          bValue = b.domain.toLowerCase();
+          break;
+        case 'source':
+          aValue = a.sourceCustomerDomain?.toLowerCase() || '';
+          bValue = b.sourceCustomerDomain?.toLowerCase() || '';
+          break;
+        case 'confidence':
+          aValue = a.confidence;
+          bValue = b.confidence;
+          break;
+        case 'icpScore':
+          aValue = a.icpScore;
+          bValue = b.icpScore;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        case 'quality':
+          // Quality: excellent > good > poor > null
+          const qualityOrder = { excellent: 3, good: 2, poor: 1 };
+          aValue = a.quality ? qualityOrder[a.quality] : 0;
+          bValue = b.quality ? qualityOrder[b.quality] : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      return sortDirection === 'asc' 
+        ? (aValue as number) - (bValue as number)
+        : (bValue as number) - (aValue as number);
+    });
+
+    return sorted;
+  }, [prospects, sortField, sortDirection]);
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
@@ -85,6 +185,11 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
     setLoadingDecisionMakers(prev => new Set(prev).add(prospect.id));
     
     try {
+      // Use ICP buyer roles if available, otherwise use defaults
+      const buyerRoles = icp?.buyerRoles && icp.buyerRoles.length > 0 
+        ? icp.buyerRoles 
+        : ['CEO', 'CTO', 'VP Sales', 'Head of Marketing'];
+      
       const response = await fetch('/api/decision-makers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,7 +197,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
           companyId: prospect.id,
           companyName: prospect.name,
           companyDomain: prospect.domain,
-          buyerRoles: ['CEO', 'CTO', 'VP Sales', 'Head of Marketing'], // Default roles
+          buyerRoles,
         }),
       });
 
@@ -102,6 +207,12 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
 
       const data = await response.json();
       
+      // Check if any decision makers were found
+      if (data.decisionMakers.length === 0) {
+        toast.info('No public decision maker data found for this company. Click "Add Manually" to add contacts yourself.');
+        return;
+      }
+      
       // Append new decision makers to existing ones (if any)
       const existingDMs = (prospect.decisionMakers as DecisionMaker[]) || [];
       const updatedProspect = {
@@ -110,7 +221,9 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
       };
       
       onProspectUpdate(updatedProspect);
-      toast.success(`Added ${data.decisionMakers.length} decision maker${data.decisionMakers.length > 1 ? 's' : ''}!`);
+      
+      // Show success message - we only return real data now
+      toast.success(`Added ${data.decisionMakers.length} real decision maker${data.decisionMakers.length > 1 ? 's' : ''} from web search!`);
     } catch (error) {
       console.error('Error generating decision makers:', error);
       toast.error('Failed to generate decision makers');
@@ -221,6 +334,52 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
     }
   };
 
+  const startAddingManualDM = (prospectId: number) => {
+    setAddingManualDM(prospectId);
+    setManualDMData({
+      name: '',
+      role: '',
+      linkedin: '',
+      email: '',
+      phone: '',
+      contactStatus: 'Not Contacted',
+    });
+  };
+
+  const cancelAddingManualDM = () => {
+    setAddingManualDM(null);
+    setManualDMData({
+      name: '',
+      role: '',
+      linkedin: '',
+      email: '',
+      phone: '',
+      contactStatus: 'Not Contacted',
+    });
+  };
+
+  const saveManualDM = (prospect: Company) => {
+    if (!manualDMData.name.trim() || !manualDMData.role.trim()) {
+      toast.error('Name and role are required');
+      return;
+    }
+
+    try {
+      const existingDMs = (prospect.decisionMakers as DecisionMaker[]) || [];
+      const updatedProspect = {
+        ...prospect,
+        decisionMakers: [...existingDMs, manualDMData],
+      };
+
+      onProspectUpdate(updatedProspect);
+      toast.success('Decision maker added manually');
+      cancelAddingManualDM();
+    } catch (error) {
+      console.error('Error adding manual decision maker:', error);
+      toast.error('Failed to add decision maker');
+    }
+  };
+
   const getContactStatusColor = (status: DecisionMaker['contactStatus']) => {
     switch (status) {
       case 'Not Contacted': return 'bg-gray-100 text-gray-800';
@@ -265,13 +424,6 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
     }
   };
 
-  const getQualityIcon = (quality: string | null | undefined) => {
-    if (quality === 'excellent') return <ThumbsUp className="h-4 w-4 text-green-600 fill-green-600" />;
-    if (quality === 'good') return <ThumbsUp className="h-4 w-4 text-blue-600" />;
-    if (quality === 'poor') return <ThumbsDown className="h-4 w-4 text-red-600 fill-red-600" />;
-    return <Minus className="h-4 w-4 text-gray-400" />;
-  };
-
   const handleDeleteCompany = async (id: number) => {
     if (!confirm('Are you sure you want to delete this company? This action cannot be undone.')) {
       return;
@@ -312,30 +464,72 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
 
   return (
     <>
-      <div className="w-full overflow-x-auto">
+      <div className="w-full overflow-x-auto" style={{ paddingTop: '180px', marginTop: '-180px' }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('name')}
+              >
+                <div className="flex items-center">
+                  Name
+                  {getSortIcon('name')}
+                </div>
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('domain')}
+              >
+                <div className="flex items-center">
                 Domain
+                  {getSortIcon('domain')}
+                </div>
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                Source
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('source')}
+              >
+                <div className="flex items-center">
+                  Source
+                  {getSortIcon('source')}
+                </div>
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Conf.
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('confidence')}
+              >
+                <div className="flex items-center">
+                  Conf.
+                  {getSortIcon('confidence')}
+                </div>
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                ICP
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('icpScore')}
+              >
+                <div className="flex items-center">
+                  ICP
+                  {getSortIcon('icpScore')}
+                </div>
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('status')}
+              >
+                <div className="flex items-center">
                 Status
+                  {getSortIcon('status')}
+                </div>
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Quality
+              <th 
+                className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                onClick={() => handleSort('quality')}
+              >
+                <div className="flex items-center">
+                  Quality
+                  {getSortIcon('quality')}
+                </div>
               </th>
               <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
@@ -343,13 +537,17 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {prospects.map((prospect) => {
+            {sortedProspects.map((prospect) => {
               const isExpanded = expandedRows.has(prospect.id);
               const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
               
               return (
                 <React.Fragment key={prospect.id}>
-                  <tr className="hover:bg-gray-50">
+                  <tr 
+                    className="hover:bg-gray-50 transition-colors"
+                    onMouseEnter={() => setHoveredRow(prospect.id)}
+                    onMouseLeave={() => setHoveredRow(null)}
+                  >
                 <td className="px-3 py-3">
                   <div className="flex items-center">
                     <button
@@ -386,14 +584,28 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                   {prospect.sourceCustomerDomain || '-'}
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                  <div className="group relative">
+                    <span 
+                      className="cursor-help inline-block"
+                      onClick={() => setActiveTooltip(activeTooltip === `conf-${prospect.id}` ? null : `conf-${prospect.id}`)}
+                    >
                   {prospect.confidence}%
+                    </span>
+                    <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[100] w-[320px] sm:w-[350px] px-4 py-3 text-xs leading-relaxed text-white bg-gray-900 rounded-lg shadow-xl whitespace-normal break-words ${activeTooltip === `conf-${prospect.id}` ? 'block' : 'hidden group-hover:block'}`}>
+                      <strong>Confidence Score:</strong> This indicates how certain the AI is about this match. Higher scores mean stronger evidence was found linking this prospect to your ICP criteria.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  </div>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm">
-                  <div className="group relative inline-block">
-                    <span className={`font-medium ${getScoreColor(prospect.icpScore)} cursor-help`}>
+                  <div className="group relative">
+                    <span 
+                      className={`font-medium ${getScoreColor(prospect.icpScore)} cursor-help inline-block`}
+                      onClick={() => setActiveTooltip(activeTooltip === `icp-${prospect.id}` ? null : `icp-${prospect.id}`)}
+                    >
                     {prospect.icpScore}
                   </span>
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-64 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg">
+                    <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[100] w-[320px] sm:w-[350px] px-4 py-3 text-xs leading-relaxed text-white bg-gray-900 rounded-lg shadow-xl whitespace-normal break-words ${activeTooltip === `icp-${prospect.id}` ? 'block' : 'hidden group-hover:block'}`}>
                       {getScoreTooltip(prospect.icpScore)}
                       <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
                     </div>
@@ -432,9 +644,11 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => openEvidenceModal(prospect)}
-                      className="text-blue-600 hover:text-blue-800 flex items-center transition-colors"
+                  <button
+                    onClick={() => openEvidenceModal(prospect)}
+                      className={`text-blue-600 hover:text-blue-800 flex items-center transition-all ${
+                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                      }`}
                       title="View Evidence"
                     >
                       <Eye className="h-4 w-4" />
@@ -443,7 +657,9 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                     {onMarkAsCustomer && (
                       <button
                         onClick={() => onMarkAsCustomer(prospect)}
-                        className="text-green-600 hover:text-green-800 flex items-center transition-colors p-1 hover:bg-green-50 rounded"
+                        className={`text-green-600 hover:text-green-800 flex items-center transition-all p-1 hover:bg-green-50 rounded ${
+                          hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                        }`}
                         title="Mark as Customer"
                       >
                         <UserPlus className="h-4 w-4" />
@@ -451,11 +667,13 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                     )}
                     <button
                       onClick={() => handleDeleteCompany(prospect.id)}
-                      className="text-red-600 hover:text-red-800 flex items-center transition-colors p-1 hover:bg-red-50 rounded"
+                      className={`text-red-600 hover:text-red-800 flex items-center transition-all p-1 hover:bg-red-50 rounded ${
+                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                      }`}
                       title="Delete company"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </button>
+                  </button>
                   </div>
                 </td>
               </tr>
@@ -470,16 +688,108 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                           <Users className="h-4 w-4 mr-2" />
                           Decision Makers
                         </h4>
-                        {decisionMakers.length === 0 && (
-                          <button
-                            onClick={() => generateDecisionMakers(prospect)}
-                            disabled={loadingDecisionMakers.has(prospect.id)}
-                            className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {loadingDecisionMakers.has(prospect.id) ? 'Generating...' : 'Generate Decision Makers'}
-                          </button>
+                        {decisionMakers.length === 0 && addingManualDM !== prospect.id && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => generateDecisionMakers(prospect)}
+                              disabled={loadingDecisionMakers.has(prospect.id)}
+                              className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                            >
+                              <Users className="h-3 w-3 mr-1" />
+                              {loadingDecisionMakers.has(prospect.id) ? 'Searching...' : 'Find via AI'}
+                            </button>
+                            <button
+                              onClick={() => startAddingManualDM(prospect.id)}
+                              className="text-xs px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                            >
+                              <UserPlus className="h-3 w-3 inline mr-1" />
+                              Add Manually
+                            </button>
+                          </div>
                         )}
                       </div>
+                      
+                      {/* Manual Input Form */}
+                      {addingManualDM === prospect.id && (
+                        <div className="bg-white border-2 border-blue-500 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-medium text-gray-900">Add Decision Maker Manually</h5>
+                            <button
+                              onClick={cancelAddingManualDM}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium">Name *</label>
+                              <input
+                                type="text"
+                                value={manualDMData.name}
+                                onChange={(e) => setManualDMData({ ...manualDMData, name: e.target.value })}
+                                placeholder="John Smith"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 text-gray-900 bg-white rounded focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium">Role *</label>
+                              <input
+                                type="text"
+                                value={manualDMData.role}
+                                onChange={(e) => setManualDMData({ ...manualDMData, role: e.target.value })}
+                                placeholder="CEO"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 text-gray-900 bg-white rounded focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium">LinkedIn</label>
+                              <input
+                                type="url"
+                                value={manualDMData.linkedin}
+                                onChange={(e) => setManualDMData({ ...manualDMData, linkedin: e.target.value })}
+                                placeholder="https://linkedin.com/in/..."
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 text-gray-900 bg-white rounded focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium">Email</label>
+                              <input
+                                type="email"
+                                value={manualDMData.email}
+                                onChange={(e) => setManualDMData({ ...manualDMData, email: e.target.value })}
+                                placeholder="john@company.com"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 text-gray-900 bg-white rounded focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-700 font-medium">Phone</label>
+                              <input
+                                type="tel"
+                                value={manualDMData.phone}
+                                onChange={(e) => setManualDMData({ ...manualDMData, phone: e.target.value })}
+                                placeholder="+44 20 1234 5678"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 text-gray-900 bg-white rounded focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-3">
+                            <button
+                              onClick={cancelAddingManualDM}
+                              className="px-3 py-1.5 text-xs text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => saveManualDM(prospect)}
+                              className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded-md hover:bg-blue-700 flex items-center"
+                            >
+                              <Save className="h-3 w-3 mr-1" />
+                              Save Decision Maker
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       
                       {decisionMakers.length > 0 ? (
                         <>
@@ -637,14 +947,21 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
                               );
                             })}
                           </div>
-                          <div className="mt-3 flex justify-center">
+                          <div className="mt-3 flex justify-center gap-2">
                             <button
                               onClick={() => generateDecisionMakers(prospect)}
                               disabled={loadingDecisionMakers.has(prospect.id)}
                               className="text-xs px-4 py-2 bg-white border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                             >
-                              <Plus className="h-3 w-3 mr-1" />
-                              {loadingDecisionMakers.has(prospect.id) ? 'Generating...' : 'Generate More Decision Makers'}
+                              <Users className="h-3 w-3 mr-1" />
+                              {loadingDecisionMakers.has(prospect.id) ? 'Searching...' : 'Find More via AI'}
+                            </button>
+                            <button
+                              onClick={() => startAddingManualDM(prospect.id)}
+                              className="text-xs px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center"
+                            >
+                              <UserPlus className="h-3 w-3 mr-1" />
+                              Add Manually
                             </button>
                           </div>
                         </>
@@ -744,6 +1061,7 @@ export default function ProspectsTab({ prospects, onStatusUpdate, onProspectUpda
         <CompanyDetailModal
           company={detailModalCompany}
           allCompanies={prospects}
+          icp={icp}
           onClose={() => setDetailModalCompany(null)}
           onUpdate={(updated) => {
             onProspectUpdate(updated);

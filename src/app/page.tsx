@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import InputsPanel from '@/components/InputsPanel';
 import ICPReviewPanel from '@/components/ICPReviewPanel';
@@ -190,8 +191,9 @@ export default function HomePage() {
 
   const handleBackToInput = () => {
     setAnalysisStep('input');
-    setExtractedICP(null);
+    // Don't clear ICP - keep it for context
     localStorage.setItem('gtm-analysis-step', 'input');
+    toast.info('Add more customers to improve your prospect list');
   };
 
   const handleClearAnalysis = () => {
@@ -304,48 +306,63 @@ export default function HomePage() {
       return;
     }
 
+    // Update prospect status to "Won" (customer)
+    const updatedProspect = {
+      ...prospect,
+      status: 'Won' as Company['status'],
+    };
+    
+    // Update prospects state
+    setProspects(prev =>
+      prev.map(p => p.id === prospect.id ? updatedProspect : p)
+    );
+
+    // Update localStorage for prospects
+    const updatedProspects = prospects.map(p => 
+      p.id === prospect.id ? updatedProspect : p
+    );
+    localStorage.setItem('gtm-data', JSON.stringify({
+      prospects: updatedProspects,
+      clusters,
+      ads,
+    }));
+
+    // Add to customers and persist
     const updatedCustomers = [...customers, newCustomer];
     setCustomers(updatedCustomers);
-    
-    // Persist to localStorage
     localStorage.setItem('gtm-customers', JSON.stringify(updatedCustomers));
     
-    toast.success(`${prospect.name} added to customer list! Re-run analysis to find more similar prospects.`);
-  };
-
-  const handleBackToInput = () => {
-    setAnalysisStep('input');
-    toast.info('Add more customers and re-run analysis to improve your prospects');
+    toast.success(`${prospect.name} marked as customer! Click "Add More Customers" to run a new analysis with this updated customer base.`);
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Go-To-Market Map</h1>
-            <p className="mt-2 text-lg text-gray-600">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Go-To-Market Map</h1>
+            <p className="mt-1 sm:mt-2 text-sm sm:text-lg text-gray-600">
               AI-powered competitor expansion CRM for B2B teams
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
             {(hasData || analysisStep === 'results') && (
               <button
                 onClick={handleBackToInput}
-                className="px-4 py-2 border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center text-sm sm:text-base"
               >
-                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Analysis
+                <Plus className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Add More Customers</span>
+                <span className="sm:hidden">Add Customers</span>
               </button>
             )}
             {(hasData || extractedICP || analysisStep !== 'input') && (
               <button
                 onClick={handleClearAnalysis}
-                className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-sm sm:text-base"
               >
-                Clear All Data
+                <span className="hidden sm:inline">Clear All Data</span>
+                <span className="sm:hidden">Clear Data</span>
               </button>
             )}
           </div>
@@ -355,10 +372,15 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Panel - Inputs */}
             <div className="space-y-6">
-              <InputsPanel onAnalyse={handleExtractICP} isLoading={isLoading} />
+              <InputsPanel 
+                onAnalyse={handleExtractICP} 
+                isLoading={isLoading}
+                initialWebsiteUrl={websiteUrl}
+                initialCustomers={customers}
+              />
             </div>
 
-            {/* Right Panel - Placeholder */}
+            {/* Right Panel - Status / Info */}
             <div className="space-y-6">
               <div className="bg-white rounded-lg shadow p-12 text-center">
                 <div className="text-gray-400 mb-4">
@@ -366,12 +388,40 @@ export default function HomePage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Ready to expand your market?
-                </h3>
-                <p className="text-gray-500">
-                  Enter your website URL and upload a customer list to start analysing and finding new prospects.
-                </p>
+                {hasData || prospects.length > 0 ? (
+                  <>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Current Analysis
+                    </h3>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <p><strong>{prospects.length}</strong> prospects found</p>
+                      <p><strong>{customers.length}</strong> customers in your list</p>
+                      {extractedICP && (
+                        <p className="text-xs text-gray-500 mt-4">
+                          ICP profile saved - add more customers to refine your search
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAnalysisStep('results');
+                        localStorage.setItem('gtm-analysis-step', 'results');
+                      }}
+                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    >
+                      View Current Results
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Ready to expand your market?
+                    </h3>
+                    <p className="text-gray-500">
+                      Enter your website URL and upload a customer list to start analysing and finding new prospects.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -417,6 +467,7 @@ export default function HomePage() {
               prospects={prospects}
               clusters={clusters}
               ads={ads}
+              icp={extractedICP || undefined}
               onStatusUpdate={handleStatusUpdate}
               onProspectUpdate={handleProspectUpdate}
               onMarkAsCustomer={handleMarkAsCustomer}

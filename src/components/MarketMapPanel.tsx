@@ -5,12 +5,13 @@ import { Download, FileText, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import ProspectsTab from './ProspectsTab';
 import ClustersTab from './ClustersTab';
-import type { Company, Cluster, Ad } from '@/types';
+import type { Company, Cluster, Ad, ICP } from '@/types';
 
 interface MarketMapPanelProps {
   prospects: Company[];
   clusters: Cluster[];
   ads: Ad[];
+  icp?: ICP;
   onStatusUpdate: (id: number, status: string) => Promise<void>;
   onProspectUpdate: (updatedProspect: Company) => void;
   onMarkAsCustomer?: (prospect: Company) => void;
@@ -19,7 +20,8 @@ interface MarketMapPanelProps {
 export default function MarketMapPanel({ 
   prospects, 
   clusters, 
-  ads, 
+  ads,
+  icp, 
   onStatusUpdate,
   onProspectUpdate,
   onMarkAsCustomer
@@ -173,7 +175,7 @@ export default function MarketMapPanel({
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-white rounded-lg shadow overflow-visible">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
@@ -280,10 +282,11 @@ export default function MarketMapPanel({
       </div>
 
       {/* Tab Content */}
-      <div className="p-6">
+      <div className="p-6 overflow-visible">
         {activeTab === 'prospects' && (
           <ProspectsTab 
-            prospects={prospects} 
+            prospects={prospects}
+            icp={icp}
             onStatusUpdate={onStatusUpdate}
             onProspectUpdate={onProspectUpdate}
             onGenerateMore={() => setShowGenerateDialog(true)}

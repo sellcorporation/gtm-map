@@ -198,25 +198,59 @@ const DecisionMakerSchema = z.object({
   }))
 });
 
-// Mock decision makers for testing
-function generateMockDecisionMakers(companyName: string, buyerRoles: string[]): Array<{
-  name: string;
-  role: string;
-  linkedin?: string;
-  email?: string;
-  contactStatus: 'Not Contacted' | 'Attempted' | 'Connected' | 'Responded' | 'Unresponsive';
-}> {
-  const domain = companyName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
-  return buyerRoles.slice(0, 3).map((role, i) => ({
-    name: `[Demo] ${role} at ${companyName}`,
-    role,
-    linkedin: `https://linkedin.com/in/demo-${role.toLowerCase().replace(/\s+/g, '-')}-${i}`,
-    email: `${role.toLowerCase().replace(/\s+/g, '.')}@${domain}`,
-    contactStatus: 'Not Contacted' as const,
-  }));
+// Search the web for real decision makers
+async function searchDecisionMakers(
+  companyName: string,
+  companyDomain: string
+): Promise<string> {
+  // Check if Tavily API key is available
+  if (!process.env.TAVILY_API_KEY) {
+    console.warn('No Tavily API key found for decision maker search');
+    return '';
+  }
+
+  try {
+    // Search for leadership/team pages and LinkedIn profiles
+    const queries = [
+      `${companyName} ${companyDomain} leadership team executives`,
+      `${companyName} CEO founder managing director site:linkedin.com`,
+      `"${companyName}" ${companyDomain} about team management`,
+    ];
+
+    let allContent = '';
+
+    for (const query of queries) {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          query,
+          max_results: 5,
+          search_depth: 'basic',
+          include_domains: ['linkedin.com', companyDomain],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.results?.map((r: { title?: string; content?: string; url?: string }) => 
+          `${r.title}\n${r.content}\n${r.url}`
+        ).join('\n\n') || '';
+        allContent += content + '\n\n';
+      }
+    }
+
+    return allContent;
+  } catch (error) {
+    console.error('Tavily search error for decision makers:', error);
+    return '';
+  }
 }
 
-// Generate decision makers for a company using AI
+// Generate decision makers for a company using real web search + AI extraction
 export async function generateDecisionMakers(
   companyName: string,
   companyDomain: string,
@@ -232,28 +266,47 @@ export async function generateDecisionMakers(
   }>;
   isMock: boolean;
 }> {
-  const DECISION_MAKERS_PROMPT = `You are a B2B lead research assistant. Generate likely decision makers for the company "${companyName}" (${companyDomain}).
+  try {
+    // Step 1: Search the web for real information about the company's leadership
+    console.log(`Searching for real decision makers at ${companyName}...`);
+    const searchResults = await searchDecisionMakers(companyName, companyDomain);
 
-Based on the target buyer roles: ${buyerRoles.join(', ')}
+    if (!searchResults || searchResults.length < 100) {
+      // No real data found - don't generate fake data
+      console.warn('No web results found for decision makers');
+      return { 
+        decisionMakers: [], 
+        isMock: true 
+      };
+    }
 
-Generate 2-4 realistic decision makers who would be involved in purchasing decisions. For each:
+    // We found real data - extract decision makers from it
+    const prompt = `You are a B2B lead research assistant. Extract REAL decision makers from the following web search results about "${companyName}" (${companyDomain}).
 
-1. Create a realistic full name (first and last name)
-2. Assign one of the provided buyer roles
-3. Generate a likely LinkedIn URL (format: https://linkedin.com/in/firstname-lastname)
-4. Generate a likely email address using common patterns (firstname.lastname@domain, f.lastname@domain, etc.)
-5. Only include phone if you have high confidence (leave empty otherwise)
+Target buyer roles to focus on: ${buyerRoles.join(', ')}
 
-Make the names diverse and realistic. Use the company domain for email addresses.
+WEB SEARCH RESULTS:
+${searchResults.slice(0, 4000)}
+
+Extract 2-5 REAL decision makers from these search results. For each person:
+
+1. Extract their ACTUAL full name (as found in the results)
+2. Extract their ACTUAL role/title
+3. Extract their LinkedIn URL if found (must be a real URL from the results)
+4. Generate a likely email address using common patterns (firstname.lastname@${companyDomain}, f.lastname@${companyDomain}, etc.)
+5. Only include phone if explicitly mentioned in the results
+
+IMPORTANT: Only include people whose names and roles you actually found in the search results. Do NOT make up names.
+If you cannot find enough people matching the target roles, include senior executives you did find.
+If you cannot find ANY real names in the results, return an empty array.
 
 Return a JSON object with a "decisionMakers" array.`;
 
-  try {
     const { object } = await generateObject({
       model,
       schema: DecisionMakerSchema,
-      prompt: DECISION_MAKERS_PROMPT,
-      temperature: 0.7,
+      prompt,
+      temperature: 0.3, // Low temperature for factual extraction
     });
     
     // Add default contact status
@@ -262,14 +315,17 @@ Return a JSON object with a "decisionMakers" array.`;
       contactStatus: 'Not Contacted' as const,
     }));
     
-    return { decisionMakers, isMock: false };
+    return { 
+      decisionMakers, 
+      isMock: false 
+    };
   } catch (error) {
     console.error('Error generating decision makers:', error);
     
-    // Fall back to mock data
-    console.log('OpenAI error occurred, using mock decision makers');
+    // Return empty array on error - don't generate fake data
+    console.log('Error occurred, returning no decision makers');
     return { 
-      decisionMakers: generateMockDecisionMakers(companyName, buyerRoles), 
+      decisionMakers: [], 
       isMock: true 
     };
   }

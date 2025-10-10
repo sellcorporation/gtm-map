@@ -99,19 +99,15 @@ async function createClusters(prospects: Company[], icp: ICP) {
   // Create multi-dimensional clusters based on ICP score ranges and characteristics
   prospects.forEach((prospect) => {
     // Determine cluster based on ICP score and dominant characteristics
-    let clusterKey = '';
-    let clusterLabel = '';
+        let clusterKey = '';
     
     // Primary dimension: ICP Score Range
     if (prospect.icpScore >= 80) {
       clusterKey += 'high-';
-      clusterLabel = 'High-Priority ';
     } else if (prospect.icpScore >= 60) {
       clusterKey += 'medium-';
-      clusterLabel = 'Medium-Priority ';
     } else {
       clusterKey += 'low-';
-      clusterLabel = 'Low-Priority ';
     }
     
     // Secondary dimension: Industry (from rationale)
@@ -120,7 +116,6 @@ async function createClusters(prospects: Company[], icp: ICP) {
     ) || icp.industries[0] || 'General';
     
     clusterKey += industry.toLowerCase().replace(/\s+/g, '-');
-    clusterLabel += industry;
     
     if (!clusterMap.has(clusterKey)) {
       clusterMap.set(clusterKey, []);
@@ -157,7 +152,7 @@ async function createClusters(prospects: Company[], icp: ICP) {
   const clusterRecords = [];
   const adRecords = [];
   
-  for (const [key, { companyIds, label }] of validClusters) {
+  for (const [_key, { companyIds, label }] of validClusters) {
     const clusterProspects = prospects.filter(p => companyIds.includes(p.id));
     
     const avgIcpScore = companyIds.reduce((sum, id) => {

@@ -13,7 +13,7 @@ const DecisionMakersRequestSchema = z.object({
 async function generateDecisionMakersHandler(request: NextRequest) {
   try {
     const body = await request.json();
-    const { companyId, companyName, companyDomain, buyerRoles } = DecisionMakersRequestSchema.parse(body);
+    const { companyId: _companyId, companyName, companyDomain, buyerRoles } = DecisionMakersRequestSchema.parse(body);
     
     // In mock mode, we don't need to lookup the company from DB
     // Just generate decision makers using the provided company details

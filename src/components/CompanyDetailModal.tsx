@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Save, Trash2, ExternalLink, Tag, Building2, Users, FileText } from 'lucide-react';
+import { X, Save, Trash2, ExternalLink, Tag, Building2, Users, FileText, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Company, Evidence, DecisionMaker } from '@/types';
+import type { Company, Evidence, DecisionMaker, ICP } from '@/types';
 
 interface CompanyDetailModalProps {
   company: Company;
   allCompanies: Company[];
+  icp?: ICP;
   onClose: () => void;
   onUpdate: (updated: Company) => void;
   onDelete: (id: number) => void;
@@ -16,12 +17,14 @@ interface CompanyDetailModalProps {
 export default function CompanyDetailModal({
   company,
   allCompanies,
+  icp,
   onClose,
   onUpdate,
   onDelete,
 }: CompanyDetailModalProps) {
   const [editedCompany, setEditedCompany] = useState<Company>(company);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -72,6 +75,63 @@ export default function CompanyDetailModal({
     } catch (error) {
       console.error('Failed to delete company:', error);
       toast.error('Failed to delete company');
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!icp) {
+      toast.error('ICP data not available. Please run a new analysis first.');
+      return;
+    }
+
+    setIsRegenerating(true);
+    try {
+      toast.info('Re-analyzing company details from fresh website data...');
+      
+      const response = await fetch('/api/company/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: editedCompany.id,
+          companyName: editedCompany.name,
+          companyDomain: editedCompany.domain,
+          icp,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to regenerate details');
+      }
+
+      const data = await response.json();
+      
+      // Update the edited company with new analysis
+      const updatedCompany = {
+        ...editedCompany,
+        rationale: data.rationale,
+        evidence: data.evidence,
+        icpScore: data.icpScore,
+        confidence: data.confidence,
+      };
+      
+      setEditedCompany(updatedCompany);
+      
+      // Also update via callback so parent state is updated
+      onUpdate(updatedCompany);
+      
+      if (data.mockData) {
+        toast.success('Company details regenerated (using demo data - OpenAI quota exceeded)');
+      } else {
+        toast.success('Company details regenerated successfully with fresh data!');
+      }
+      
+    } catch (error) {
+      console.error('Failed to regenerate details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to regenerate details';
+      toast.error(errorMessage);
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -135,33 +195,41 @@ export default function CompanyDetailModal({
   const otherCompanies = allCompanies.filter(c => c.id !== company.id && !relatedIds.includes(c.id));
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-8 mx-auto p-6 border w-full max-w-4xl shadow-lg rounded-lg bg-white mb-8">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 p-4">
+      <div className="relative top-8 mx-auto p-4 sm:p-6 border w-full max-w-4xl shadow-lg rounded-lg bg-white mb-8">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex-1">
+        <div className="flex flex-col sm:flex-row items-start justify-between mb-6 gap-4">
+          <div className="flex-1 min-w-0 w-full">
             <div className="flex items-center space-x-3">
-              <Building2 className="h-6 w-6 text-gray-400" />
+              <Building2 className="h-6 w-6 text-gray-400 flex-shrink-0" />
               <input
                 type="text"
                 value={editedCompany.name}
                 onChange={(e) => setEditedCompany({ ...editedCompany, name: e.target.value })}
-                className="text-2xl font-bold text-gray-900 bg-white border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1"
+                className="text-xl sm:text-2xl font-bold text-gray-900 bg-white border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 w-full"
               />
             </div>
             <a
               href={editedCompany.domain.startsWith('http') ? editedCompany.domain : `https://${editedCompany.domain}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 flex items-center mt-1 text-sm"
+              className="text-blue-600 hover:text-blue-800 flex items-center mt-1 text-sm break-all"
             >
               {editedCompany.domain}
-              <ExternalLink className="h-3 w-3 ml-1" />
+              <ExternalLink className="h-3 w-3 ml-1 flex-shrink-0" />
             </a>
+            <button
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              className="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={`h-3 w-3 mr-1.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+              {isRegenerating ? 'Regenerating...' : 'Regenerate Details'}
+            </button>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
           >
             <X className="h-6 w-6" />
           </button>

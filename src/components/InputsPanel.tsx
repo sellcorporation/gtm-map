@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, Trash2, Plus, X } from 'lucide-react';
 import Papa from 'papaparse';
@@ -9,16 +9,33 @@ import type { Customer } from '@/types';
 interface InputsPanelProps {
   onAnalyse: (websiteUrl: string, customers: Customer[]) => void;
   isLoading: boolean;
+  initialWebsiteUrl?: string;
+  initialCustomers?: Customer[];
 }
 
-export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) {
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
+export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = '', initialCustomers = [] }: InputsPanelProps) {
+  const [websiteUrl, setWebsiteUrl] = useState(initialWebsiteUrl);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [error, setError] = useState('');
   const [inputMode, setInputMode] = useState<'csv' | 'manual'>('csv');
-  const [manualCustomers, setManualCustomers] = useState<Customer[]>([
-    { name: '', domain: '', notes: '' }
-  ]);
+  const [manualCustomers, setManualCustomers] = useState<Customer[]>(
+    initialCustomers.length > 0 ? initialCustomers : [{ name: '', domain: '', notes: '' }]
+  );
+
+  // Sync with parent state when it changes
+  useEffect(() => {
+    if (initialWebsiteUrl) {
+      setWebsiteUrl(initialWebsiteUrl);
+    }
+  }, [initialWebsiteUrl]);
+
+  useEffect(() => {
+    if (initialCustomers.length > 0) {
+      setCustomers(initialCustomers);
+      setManualCustomers(initialCustomers);
+      setInputMode(initialCustomers.length > 0 ? 'manual' : 'csv');
+    }
+  }, [initialCustomers]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -108,6 +125,15 @@ export default function InputsPanel({ onAnalyse, isLoading }: InputsPanelProps) 
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-6">Inputs</h2>
+      
+      {/* Info banner when returning with existing data */}
+      {initialCustomers.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-sm text-blue-800">
+            💡 <strong>Tip:</strong> You can add more customers below or modify existing ones. Click &ldquo;Extract ICP & Continue&rdquo; to re-run the analysis with your updated customer list.
+          </p>
+        </div>
+      )}
       
       {/* Website URL */}
       <div className="mb-6">
