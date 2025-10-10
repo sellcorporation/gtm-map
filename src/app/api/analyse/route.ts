@@ -404,14 +404,71 @@ async function analyseHandler(request: NextRequest) {
       return acc;
     }, [] as Competitor[]);
     
+        // If we don't have enough competitors yet, do additional broader searches
+        if (uniqueCompetitors.length < maxProspects) {
+          sendMessage(`\n🔍 Need more prospects (have ${uniqueCompetitors.length}, need ${maxProspects}), searching with broader terms...`);
+          
+          const broaderSearches = [
+            `${icp.industries[0]} companies ${icp.firmographics.geo}`,
+            `${icp.industries[0]} services ${icp.firmographics.geo}`,
+            `${icp.workflows[0]} companies`,
+          ];
+          
+          for (const searchQuery of broaderSearches) {
+            if (uniqueCompetitors.length >= maxProspects * 2) break; // Get extra for filtering
+            
+            sendMessage(`   🌐 Searching: "${searchQuery}"`);
+            const additionalSearchResults = await searchCompetitors(searchQuery, '');
+            const additionalNeeded = maxProspects * 2 - uniqueCompetitors.length;
+            
+            const { competitors: moreCompetitors } = await findCompetitors(
+              customers[0]?.domain || '',
+              'Additional Search',
+              icp,
+              additionalSearchResults,
+              additionalNeeded
+            );
+            
+            sendMessage(`   ✅ Found ${moreCompetitors.length} additional candidates`);
+            
+            // Dedupe and add
+            for (const comp of moreCompetitors) {
+              const existing = uniqueCompetitors.find(c => c.domain === comp.domain);
+              if (!existing) {
+                uniqueCompetitors.push(comp);
+              }
+            }
+          }
+          
+          sendMessage(`📊 Total prospect pool after broad search: ${uniqueCompetitors.length} companies`);
+        }
+        
         // Analyze each competitor with AI-powered workflow scoring
-        sendMessage(`\n🤖 AI Analysis Phase: Analyzing ${uniqueCompetitors.length} unique prospects...`);
+        sendMessage(`\n🤖 AI Analysis Phase: Analyzing prospects to reach target of ${maxProspects}...`);
         
         const prospectRecords = [];
         const processedDomains = new Set<string>();
         let analyzedCount = 0;
         
+        // Adaptive threshold for analysis
+        let currentThreshold = 30; // Start accepting scores of 30+
+        const minThreshold = 20; // Go as low as 20 if needed
+        
         for (const competitor of uniqueCompetitors) {
+          // Stop if we've reached the target
+          if (prospectRecords.length >= maxProspects) {
+            sendMessage(`✅ Reached target of ${maxProspects} prospects!`);
+            break;
+          }
+          
+          // Adaptive threshold: lower it if we're running out of candidates
+          const remainingCandidates = uniqueCompetitors.length - analyzedCount;
+          const remainingNeeded = maxProspects - prospectRecords.length;
+          
+          if (remainingCandidates <= remainingNeeded * 1.5 && currentThreshold > minThreshold) {
+            currentThreshold = Math.max(minThreshold, currentThreshold - 5);
+            sendMessage(`📉 Lowering acceptance threshold to ${currentThreshold} to ensure target is met`);
+          }
           // Skip if we've already processed this domain (handles duplicates from multiple sources)
           const normalizedDomain = competitor.domain.toLowerCase();
           if (processedDomains.has(normalizedDomain)) {
@@ -446,6 +503,12 @@ async function analyseHandler(request: NextRequest) {
             );
             
             sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}%`);
+        
+            // Check if prospect meets current threshold
+            if (analysis.icpScore < currentThreshold) {
+              sendMessage(`⏭️ Skipped ${competitor.name}: score ${analysis.icpScore} below threshold ${currentThreshold}`);
+              continue;
+            }
         
         const prospect = await db.insert(companies).values({
           userId: 'demo-user', // TODO: Get from auth context
@@ -634,16 +697,21 @@ async function analyseHandler(request: NextRequest) {
 
         // Summary message
         const skippedCount = uniqueCompetitors.length - prospectRecords.length;
+        sendMessage(`\n📊 Analysis Summary:`);
+        sendMessage(`   ✅ Added: ${prospectRecords.length} prospects`);
         if (skippedCount > 0) {
-          sendMessage(`\n📋 Summary: ${prospectRecords.length} new prospects added, ${skippedCount} skipped (duplicates, invalid domains, or errors)`);
+          sendMessage(`   ⏭️ Skipped: ${skippedCount} (low scores, duplicates, or errors)`);
+        }
+        sendMessage(`   📈 Used adaptive threshold to maximize quality while meeting target`);
+        
+        // Celebrate hitting target or warn if we couldn't
+        if (prospectRecords.length >= maxProspects) {
+          sendMessage(`\n🎉 Successfully generated all ${maxProspects} requested prospects!`);
+        } else if (prospectRecords.length < maxProspects) {
+          sendMessage(`\n⚠️ Warning: Only generated ${prospectRecords.length} of ${maxProspects} requested prospects. Exhausted all search options. Consider broader ICP criteria.`);
         }
         
-        // Inform user if we couldn't reach the target
-        if (prospectRecords.length < maxProspects) {
-          sendMessage(`\n⚠️ Note: Generated ${prospectRecords.length} of ${maxProspects} requested prospects. Some competitors had invalid domains or couldn't be analyzed.`);
-        }
-        
-        sendMessage(`\n🎉 Analysis complete! Total: ${prospectRecords.length} prospect(s) ready.`);
+        sendMessage(`\n🎉 Analysis complete! Moving to cluster generation...`);
 
         // Send final result
         const result = {

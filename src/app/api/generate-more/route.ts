@@ -121,7 +121,7 @@ async function generateMoreHandler(request: NextRequest) {
           sendMessage(`📋 Processing search results and filtering...`);
           let filteredCount = 0;
           
-          const candidates = searchResults
+          let candidates = searchResults
             .map(result => {
               try {
                 // Extract domain from URL
@@ -140,7 +140,6 @@ async function generateMoreHandler(request: NextRequest) {
                 // Validate the company name
                 if (!isValidCompanyName(name)) {
                   filteredCount++;
-                  sendMessage(`⚠️ Filtered out invalid name: "${name}"`);
                   return null;
                 }
                 
@@ -151,23 +150,74 @@ async function generateMoreHandler(request: NextRequest) {
             })
             .filter((candidate): candidate is { name: string; domain: string; url: string } => 
               candidate !== null && !existingDomains.has(candidate.domain.toLowerCase())
-            )
-            .slice(0, Math.min(actualBatchSize * 3, 50)); // Get more candidates than needed
+            );
           
           sendMessage(`✅ Found ${candidates.length} valid candidates (filtered out ${filteredCount} invalid names)`);
           
+          // If we don't have enough candidates, do additional searches
+          let searchAttempt = 1;
+          const maxSearchAttempts = 3;
+          
+          while (candidates.length < actualBatchSize * 10 && searchAttempt < maxSearchAttempts) {
+            searchAttempt++;
+            sendMessage(`🔍 Need more candidates, searching with broader terms (attempt ${searchAttempt})...`);
+            
+            // Try broader searches
+            const broaderQueries = [
+              `${icp.industries[0]} companies ${icp.firmographics.geo}`,
+              `${icp.industries[0]} services ${icp.firmographics.geo}`,
+              `${icp.workflows[0]} ${icp.industries[0]}`,
+            ];
+            
+            for (const query of broaderQueries) {
+              if (candidates.length >= actualBatchSize * 10) break;
+              
+              const additionalResults = await searchCompanies(query);
+              const newCandidates = additionalResults
+                .map(result => {
+                  try {
+                    const urlObj = new URL(result.url);
+                    const domain = urlObj.hostname.replace('www.', '');
+                    const aggregatorDomains = ['clutch.co', 'yelp.com', 'ricsfirms.com', 'trustpilot.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'comparemymove.com', 'propertyinspect.com'];
+                    if (aggregatorDomains.some(agg => domain.includes(agg))) return null;
+                    
+                    let name = result.title.split(/[-|–—]/)[0].trim();
+                    if (!isValidCompanyName(name)) return null;
+                    
+                    return { name, domain, url: result.url };
+                  } catch (error) {
+                    return null;
+                  }
+                })
+                .filter((candidate): candidate is { name: string; domain: string; url: string } => 
+                  candidate !== null && 
+                  !existingDomains.has(candidate.domain.toLowerCase()) &&
+                  !candidates.some(c => c.domain === candidate.domain)
+                );
+              
+              candidates = [...candidates, ...newCandidates];
+              sendMessage(`   Found ${newCandidates.length} additional candidates`);
+            }
+          }
+          
+          sendMessage(`📊 Total candidate pool: ${candidates.length} companies`);
+          
           if (candidates.length === 0) {
-            sendMessage(`❌ No new unique prospects found. Try refining your ICP or quality ratings.`);
+            sendMessage(`❌ No new unique prospects found after ${searchAttempt} search attempts.`);
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ result: { prospects: [], message: 'No prospects found' } })}\n\n`));
             controller.close();
             return;
           }
     
           // Analyze each candidate
-          sendMessage(`\n🤖 AI Analysis Phase: Analyzing candidates against ICP...`);
+          sendMessage(`\n🤖 AI Analysis Phase: Analyzing candidates to reach target of ${actualBatchSize} prospects...`);
           const newProspects: Company[] = [];
           let processedCount = 0;
           let skippedLowScore = 0;
+          
+          // Adaptive threshold: start high, lower if we can't find enough
+          let currentThreshold = 50;
+          const minThreshold = 20; // Accept anything above 20 if needed
           
           for (const candidate of candidates) {
             if (newProspects.length >= actualBatchSize) {
@@ -177,7 +227,7 @@ async function generateMoreHandler(request: NextRequest) {
             
             try {
               processedCount++;
-              sendMessage(`🔍 Analyzing ${candidate.name} (${candidate.domain})... [${processedCount}/${candidates.length}]`);
+              sendMessage(`🔍 Analyzing ${candidate.name} (${candidate.domain})... [${newProspects.length + 1}/${actualBatchSize} needed]`);
               
               // Fetch and analyze website content
               const content = await fetchWebsiteContent(candidate.domain);
@@ -185,8 +235,17 @@ async function generateMoreHandler(request: NextRequest) {
               
               sendMessage(`   📊 ICP Score: ${analysis.icpScore}/100, Confidence: ${analysis.confidence}%`);
               
-              // Only include if ICP score is above threshold (50+)
-              if (analysis.icpScore >= 50) {
+              // Adaptive threshold: lower it if we're running out of candidates
+              const remainingCandidates = candidates.length - processedCount;
+              const remainingNeeded = actualBatchSize - newProspects.length;
+              
+              if (remainingCandidates <= remainingNeeded && currentThreshold > minThreshold) {
+                currentThreshold = Math.max(minThreshold, currentThreshold - 10);
+                sendMessage(`   📉 Lowering threshold to ${currentThreshold} to ensure we hit target`);
+              }
+              
+              // Accept if above current threshold
+              if (analysis.icpScore >= currentThreshold) {
                 try {
                   // Insert to database
                   const insertedProspect = await db.insert(companiesTable).values({
@@ -229,9 +288,12 @@ async function generateMoreHandler(request: NextRequest) {
           sendMessage(`\n📊 Generation complete!`);
           sendMessage(`   ✅ Added: ${newProspects.length} new prospects`);
           sendMessage(`   ⏭️ Skipped: ${skippedLowScore} low-scoring candidates`);
+          sendMessage(`   📈 Used adaptive threshold to ensure target was met`);
           
           if (newProspects.length < actualBatchSize) {
-            sendMessage(`\n⚠️ Note: Generated ${newProspects.length} of ${actualBatchSize} requested prospects. Some candidates had low ICP scores or couldn't be analyzed.`);
+            sendMessage(`\n⚠️ Warning: Only generated ${newProspects.length} of ${actualBatchSize} requested prospects. Exhausted all search options. Consider broader ICP criteria.`);
+          } else {
+            sendMessage(`\n🎉 Successfully generated all ${actualBatchSize} requested prospects!`);
           }
           
           // Send final result
