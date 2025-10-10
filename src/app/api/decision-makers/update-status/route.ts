@@ -17,33 +17,18 @@ async function updateDecisionMakerStatusHandler(request: NextRequest) {
     const body = await request.json();
     const { companyId, decisionMakerName, contactStatus, notes } = UpdateStatusSchema.parse(body);
     
-    // Check if in mock mode
-    const isMockMode = typeof db === 'object' && !db.query;
-    
     // Get the company
-    let company;
-    if (isMockMode) {
-      const allCompanies = db.select().from(companies) as Array<{ 
-        id: number; 
-        decisionMakers?: DecisionMaker[];
-        [key: string]: unknown 
-      }>;
-      company = allCompanies.find((c: { id: number }) => c.id === companyId);
-      if (!company) {
-        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-      }
-    } else {
-      const result = await db
-        .select()
-        .from(companies)
-        .where(eq(companies.id, companyId))
-        .limit(1);
-      
-      if (result.length === 0) {
-        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-      }
-      company = result[0];
+    const result = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .limit(1);
+    
+    if (result.length === 0) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
+    
+    const company = result[0];
     
     // Update decision maker status
     const decisionMakers = (company.decisionMakers as DecisionMaker[]) || [];
@@ -60,14 +45,10 @@ async function updateDecisionMakerStatusHandler(request: NextRequest) {
     };
     
     // Update in database
-    if (isMockMode) {
-      company.decisionMakers = decisionMakers;
-    } else {
-      await db
-        .update(companies)
-        .set({ decisionMakers })
-        .where(eq(companies.id, companyId));
-    }
+    await db
+      .update(companies)
+      .set({ decisionMakers })
+      .where(eq(companies.id, companyId));
     
     return NextResponse.json({ 
       success: true, 

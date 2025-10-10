@@ -25,29 +25,11 @@ async function updateCompanyHandler(request: NextRequest) {
     const body = await request.json();
     const { companyId, ...updates } = UpdateCompanySchema.parse(body);
     
-    // Check if in mock mode
-    const isMockMode = typeof db === 'object' && !db.query;
-    
-    let updated;
-    if (isMockMode) {
-      // In mock mode, use a simpler update approach
-      const allCompanies = db.select().from(companies) as Array<{ id: number; [key: string]: unknown }>;
-      const company = allCompanies.find((c: { id: number }) => c.id === companyId);
-      
-      if (company) {
-        Object.assign(company, updates);
-        updated = [company];
-      } else {
-        updated = [];
-      }
-    } else {
-      // Real database mode
-      updated = await db
-        .update(companies)
-        .set(updates)
-        .where(eq(companies.id, companyId))
-        .returning();
-    }
+    const updated = await db
+      .update(companies)
+      .set(updates)
+      .where(eq(companies.id, companyId))
+      .returning();
     
     if (updated.length === 0) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 });
@@ -77,33 +59,16 @@ async function deleteCompanyHandler(request: NextRequest) {
     const body = await request.json();
     const { companyId } = DeleteCompanySchema.parse(body);
     
-    // Check if in mock mode
-    const isMockMode = typeof db === 'object' && !db.query;
+    const deleted = await db
+      .delete(companies)
+      .where(eq(companies.id, companyId))
+      .returning();
     
-    if (isMockMode) {
-      // In mock mode, filter out the company
-      const allCompanies = db.select().from(companies) as Array<{ id: number; [key: string]: unknown }>;
-      const index = allCompanies.findIndex((c: { id: number }) => c.id === companyId);
-      
-      if (index !== -1) {
-        allCompanies.splice(index, 1);
-        return NextResponse.json({ success: true });
-      } else {
-        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-      }
-    } else {
-      // Real database mode
-      const deleted = await db
-        .delete(companies)
-        .where(eq(companies.id, companyId))
-        .returning();
-      
-      if (deleted.length === 0) {
-        return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-      }
-      
-      return NextResponse.json({ success: true });
+    if (deleted.length === 0) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
+    
+    return NextResponse.json({ success: true });
     
   } catch (error) {
     console.error('Company deletion error:', error);

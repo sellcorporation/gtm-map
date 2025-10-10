@@ -14,29 +14,11 @@ async function updateQualityHandler(request: NextRequest) {
     const body = await request.json();
     const { companyId, quality } = QualityUpdateSchema.parse(body);
     
-    // Check if in mock mode
-    const isMockMode = typeof db === 'object' && !db.query;
-    
-    let updated;
-    if (isMockMode) {
-      // In mock mode, use a simpler update approach
-      const allCompanies = db.select().from(companies) as Array<{ id: number; quality?: string | null; [key: string]: unknown }>;
-      const company = allCompanies.find((c: { id: number }) => c.id === companyId);
-      
-      if (company) {
-        company.quality = quality;
-        updated = [company];
-      } else {
-        updated = [];
-      }
-    } else {
-      // Real database mode
-      updated = await db
-        .update(companies)
-        .set({ quality })
-        .where(eq(companies.id, companyId))
-        .returning();
-    }
+    const updated = await db
+      .update(companies)
+      .set({ quality })
+      .where(eq(companies.id, companyId))
+      .returning();
     
     if (updated.length === 0) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 });
