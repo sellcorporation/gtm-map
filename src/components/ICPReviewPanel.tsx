@@ -53,6 +53,19 @@ export default function ICPReviewPanel({
     }));
   };
 
+  const toggleEditMode = () => {
+    if (isEditing) {
+      // Switching from edit to view: parse raw inputs into editedICP
+      setEditedICP(prev => ({
+        ...prev,
+        industries: rawInputs.industries.split(',').map(item => item.trim()).filter(item => item.length > 0),
+        workflows: rawInputs.workflows.split(',').map(item => item.trim()).filter(item => item.length > 0),
+        buyerRoles: rawInputs.buyerRoles.split(',').map(item => item.trim()).filter(item => item.length > 0),
+      }));
+    }
+    setIsEditing(!isEditing);
+  };
+
   const handleConfirm = () => {
     // Parse the raw inputs into arrays before confirming
     const finalICP: ICP = {
@@ -70,7 +83,7 @@ export default function ICPReviewPanel({
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xl font-semibold text-gray-900">Extracted ICP Profile</h2>
           <button
-            onClick={() => setIsEditing(!isEditing)}
+            onClick={toggleEditMode}
             className="flex items-center text-sm text-blue-600 hover:text-blue-800"
           >
             <Edit2 className="h-4 w-4 mr-1" />
