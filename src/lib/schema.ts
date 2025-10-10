@@ -1,9 +1,21 @@
-import { pgTable, serial, text, integer, json } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, json, timestamp } from 'drizzle-orm/pg-core';
+
+// User sessions and ICP profiles
+export const userSessions = pgTable('user_sessions', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull(), // from auth
+  websiteUrl: text('website_url'),
+  icp: json('icp'), // ICP object
+  analysisStep: text('analysis_step').default('input'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
 
 export const companies = pgTable('companies', {
   id: serial('id').primaryKey(),
+  userId: text('user_id').notNull(), // associate with user
   name: text('name').notNull(),
-  domain: text('domain').notNull().unique(),
+  domain: text('domain').notNull(),
   source: text('source', { enum: ['seed', 'expanded'] }).notNull(),
   sourceCustomerDomain: text('source_customer_domain'),
   icpScore: integer('icp_score').notNull(),
@@ -20,10 +32,13 @@ export const companies = pgTable('companies', {
   notes: text('notes'), // CRM notes for this company
   tags: json('tags'), // array of tag strings for grouping
   relatedCompanyIds: json('related_company_ids'), // array of related company IDs
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 export const clusters = pgTable('clusters', {
   id: serial('id').primaryKey(),
+  userId: text('user_id').notNull(),
   label: text('label').notNull(),
   criteria: json('criteria').notNull(),
   companyIds: json('company_ids').notNull(),
@@ -43,3 +58,5 @@ export type Cluster = typeof clusters.$inferSelect;
 export type NewCluster = typeof clusters.$inferInsert;
 export type Ad = typeof ads.$inferSelect;
 export type NewAd = typeof ads.$inferInsert;
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;

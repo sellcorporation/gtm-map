@@ -412,6 +412,7 @@ async function analyseHandler(request: NextRequest) {
             sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}%`);
         
         const prospect = await db.insert(companies).values({
+          userId: 'demo-user', // TODO: Get from auth context
           name: competitor.name,
           domain: competitor.domain,
           source: 'expanded',
@@ -444,6 +445,7 @@ async function analyseHandler(request: NextRequest) {
               }));
               
               const prospect = await db.insert(companies).values({
+                userId: 'demo-user', // TODO: Get from auth context
                 name: competitor.name,
                 domain: competitor.domain,
                 source: 'expanded',

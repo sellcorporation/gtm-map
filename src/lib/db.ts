@@ -17,6 +17,8 @@ let companies: any;
 let clusters: any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ads: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let userSessions: any;
 
 if (isMockMode) {
   // Mock database implementation
@@ -25,7 +27,8 @@ if (isMockMode) {
   const mockData = {
     companies: [],
     clusters: [],
-    ads: []
+    ads: [],
+    userSessions: []
   };
 
   db = {
@@ -41,6 +44,8 @@ if (isMockMode) {
             mockData.clusters.push(result as never);
           } else if (tableName === 'ads') {
             mockData.ads.push(result as never);
+          } else if (tableName === 'user_sessions') {
+            mockData.userSessions.push(result as never);
           }
           return [result];
         }
@@ -52,8 +57,20 @@ if (isMockMode) {
         if (tableName === 'companies') return mockData.companies;
         if (tableName === 'clusters') return mockData.clusters;
         if (tableName === 'ads') return mockData.ads;
+        if (tableName === 'user_sessions') return mockData.userSessions;
         return [];
-      }
+      },
+      where: (condition: unknown) => ({
+        orderBy: () => ({
+          limit: (n: number) => {
+            // For mock, just return the data (simplified)
+            return mockData.userSessions.slice(0, n);
+          }
+        }),
+        limit: (n: number) => {
+          return mockData.userSessions.slice(0, n);
+        }
+      })
     }),
     update: (table: MockTable) => ({
       set: (data: Record<string, unknown>) => ({
@@ -64,6 +81,7 @@ if (isMockMode) {
             if (tableName === 'companies') tableData = mockData.companies;
             else if (tableName === 'clusters') tableData = mockData.clusters;
             else if (tableName === 'ads') tableData = mockData.ads;
+            else if (tableName === 'user_sessions') tableData = mockData.userSessions;
             
             // Extract ID from drizzle-orm eq() condition
             // Drizzle's eq() returns an object with right/left sides
@@ -103,6 +121,7 @@ if (isMockMode) {
   companies = { name: 'companies' };
   clusters = { name: 'clusters' };
   ads = { name: 'ads' };
+  userSessions = { name: 'user_sessions' };
 } else {
   // Real database connection
   const connectionString = process.env.DATABASE_URL!;
@@ -111,6 +130,7 @@ if (isMockMode) {
   companies = schema.companies;
   clusters = schema.clusters;
   ads = schema.ads;
+  userSessions = schema.userSessions;
 }
 
-export { db, schema, companies, clusters, ads };
+export { db, schema, companies, clusters, ads, userSessions };
