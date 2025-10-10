@@ -347,7 +347,6 @@ export default function CompanyDetailModal({
 
   const deleteEvidence = (index: number) => {
     const evidenceArray = (editedCompany.evidence as Evidence[]) || [];
-    const deletedUrl = evidenceArray[index]?.url || 'this evidence';
     const updatedEvidence = evidenceArray.filter((_, idx) => idx !== index);
     const updatedCompany = {
       ...editedCompany,
@@ -628,7 +627,7 @@ export default function CompanyDetailModal({
             </div>
 
             <div className="mt-3 text-xs text-yellow-800 bg-yellow-100 px-3 py-2 rounded">
-              <strong>💡 Tip:</strong> AI extracted information from the website. Review the changes and click "Accept & Apply" to save them to the database.
+              <strong>💡 Tip:</strong> AI extracted information from the website. Review the changes and click &ldquo;Accept &amp; Apply&rdquo; to save them to the database.
             </div>
           </div>
         )}

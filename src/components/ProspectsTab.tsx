@@ -470,7 +470,6 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
       const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
       
       // Mark as poor quality before deleting so AI knows not to suggest again
-      const dmToDelete = decisionMakers[dmIndex];
       const updatedDMs = decisionMakers.map((dm, idx) => 
         idx === dmIndex ? { ...dm, quality: 'poor' as const } : dm
       );

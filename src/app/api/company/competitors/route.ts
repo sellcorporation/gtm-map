@@ -224,7 +224,6 @@ Return a JSON array of competitor objects with "name" and optionally "domain".`;
         sendUpdate(`🔬 Analyzing ${Math.min(batchSize, candidates.length)} competitors against your ICP...`);
         
         const newCompetitors: Company[] = [];
-        let processedCount = 0;
 
         for (const candidate of candidates) {
           if (newCompetitors.length >= batchSize) break;
@@ -267,8 +266,6 @@ Return a JSON array of competitor objects with "name" and optionally "domain".`;
             } else {
               sendUpdate(`⏭️ Skipped ${candidate.name} (ICP Score ${analysis.icpScore} too low)`);
             }
-
-            processedCount++;
 
           } catch (error) {
             sendUpdate(`⚠️ Failed to analyze ${candidate.name}`);

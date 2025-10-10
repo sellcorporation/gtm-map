@@ -45,7 +45,17 @@ async function generateDecisionMakersHandler(request: NextRequest) {
     );
     
     // Merge with existing decision makers in database
-    const existingDMsInDB = (company[0].decisionMakers as any[]) || [];
+    const existingDMsInDB = (company[0].decisionMakers as Array<{
+      name: string;
+      role: string;
+      linkedin?: string;
+      email?: string;
+      emailSource?: 'found' | 'generated';
+      phone?: string;
+      contactStatus: string;
+      quality?: string;
+      notes?: string;
+    }>) || [];
     const mergedDecisionMakers = [...existingDMsInDB, ...newDecisionMakers];
     
     // Update the company record in database with new decision makers and timestamp

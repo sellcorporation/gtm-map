@@ -102,7 +102,7 @@ async function generateMoreHandler(request: NextRequest) {
           
           // PHASE 3: GPT analyzes and filters results
           sendMessage(`\n🤖 AI analyzing results to extract real companies...`);
-          let candidates = await extractCompaniesFromSearch(
+          const candidates = await extractCompaniesFromSearch(
             allSearchResults,
             icp,
             existingDomains,

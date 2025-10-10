@@ -3,9 +3,6 @@ import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { requireAuth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { companies } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
 import type { ICP } from '@/types';
 
 const model = openai('gpt-4o');
