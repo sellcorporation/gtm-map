@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
 import { db, companies, clusters, ads } from '@/lib/db';
-import { extractICP, findCompetitors, generateAdCopy } from '@/lib/ai';
-import { searchCompetitors } from '@/lib/search';
+import { extractICP, findCompetitors, generateAdCopy, analyzeWebsiteAgainstICP } from '@/lib/ai';
+import { searchCompetitors, fetchWebsiteContent as fetchWebsite } from '@/lib/search';
 import { AnalyseRequestSchema } from '@/lib/prompts';
 import { requireAuth } from '@/lib/auth';
 import type { ICP, Competitor, Evidence, Company } from '@/types';
@@ -300,30 +300,62 @@ async function analyseHandler(request: NextRequest) {
       return acc;
     }, [] as Competitor[]);
     
-    // Compute ICP scores and save to database
+    // Analyze each competitor with AI-powered workflow scoring
     const prospectRecords = [];
     
     for (const competitor of uniqueCompetitors) {
-      const icpScore = await computeICPScore(competitor, icp);
-      
-      const evidence: Evidence[] = competitor.evidenceUrls.map(url => ({
-        url,
-        snippet: `Evidence for ${competitor.name} as competitor`,
-      }));
-      
-      const prospect = await db.insert(companies).values({
-        name: competitor.name,
-        domain: competitor.domain,
-        source: 'expanded',
-        sourceCustomerDomain: customers[0]?.domain,
-        icpScore,
-        confidence: competitor.confidence,
-        status: 'New',
-        rationale: competitor.rationale,
-        evidence,
-      }).returning();
-      
-      prospectRecords.push(prospect[0]);
+      try {
+        console.log(`Analyzing ${competitor.domain} with AI workflow scoring...`);
+        
+        // Fetch website content for proper analysis
+        const websiteContent = await fetchWebsite(competitor.domain);
+        
+        // Use AI-powered workflow-based analysis
+        const analysis = await analyzeWebsiteAgainstICP(
+          websiteContent,
+          competitor.name,
+          competitor.domain,
+          icp
+        );
+        
+        console.log(`${competitor.name}: ICP Score ${analysis.icpScore}, Confidence ${analysis.confidence}`);
+        
+        const prospect = await db.insert(companies).values({
+          name: competitor.name,
+          domain: competitor.domain,
+          source: 'expanded',
+          sourceCustomerDomain: customers[0]?.domain,
+          icpScore: analysis.icpScore,
+          confidence: analysis.confidence,
+          status: 'New',
+          rationale: analysis.rationale,
+          evidence: analysis.evidence,
+        }).returning();
+        
+        prospectRecords.push(prospect[0]);
+      } catch (error) {
+        console.error(`Failed to analyze ${competitor.name}:`, error);
+        // Fall back to simple scoring if AI analysis fails
+        const icpScore = await computeICPScore(competitor, icp);
+        const evidence: Evidence[] = competitor.evidenceUrls.map(url => ({
+          url,
+          snippet: `Evidence for ${competitor.name} as competitor`,
+        }));
+        
+        const prospect = await db.insert(companies).values({
+          name: competitor.name,
+          domain: competitor.domain,
+          source: 'expanded',
+          sourceCustomerDomain: customers[0]?.domain,
+          icpScore,
+          confidence: competitor.confidence,
+          status: 'New',
+          rationale: competitor.rationale,
+          evidence,
+        }).returning();
+        
+        prospectRecords.push(prospect[0]);
+      }
     }
     
     // Create clusters and ads
