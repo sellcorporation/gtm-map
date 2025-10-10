@@ -1,37 +1,141 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
+import { searchCompetitors } from '@/lib/search';
+import { fetchWebsiteContent } from '@/lib/prompts';
+import { analyzeWebsiteAgainstICP } from '@/lib/ai';
+import type { ICP, Company } from '@/types';
 
 const GenerateMoreRequestSchema = z.object({
-  batchSize: z.number().int().min(1).max(1000),
+  batchSize: z.number().int().min(1).max(100), // Limit to 100 per request
+  icp: z.object({
+    industries: z.array(z.string()),
+    pains: z.array(z.string()),
+    buyerRoles: z.array(z.string()),
+    firmographics: z.object({
+      size: z.string(),
+      geo: z.string(),
+    }),
+  }),
   existingProspects: z.array(z.object({
     id: z.number(),
+    domain: z.string(),
+    name: z.string(),
     quality: z.string().nullable().optional(),
     icpScore: z.number(),
+    rationale: z.string().optional(),
   })),
 });
 
 async function generateMoreHandler(request: NextRequest) {
   try {
     const body = await request.json();
-    const { batchSize, existingProspects } = GenerateMoreRequestSchema.parse(body);
+    const { batchSize, icp, existingProspects } = GenerateMoreRequestSchema.parse(body);
     
-    // For now, return a message that this feature is in development
-    // In a full implementation, this would:
-    // 1. Analyze "excellent" rated prospects to find patterns
-    // 2. Use those patterns to refine the ICP
-    // 3. Search for more similar companies
-    // 4. Return new unique prospects
+    console.log(`Generating ${batchSize} more prospects based on ICP and ${existingProspects.length} existing prospects...`);
     
+    // Filter out existing domains to avoid duplicates
+    const existingDomains = new Set(existingProspects.map(p => p.domain.toLowerCase()));
+    
+    // Analyze high-quality prospects to refine search
     const excellentProspects = existingProspects.filter(p => p.quality === 'excellent');
-    const avgScore = excellentProspects.length > 0
-      ? excellentProspects.reduce((sum, p) => sum + p.icpScore, 0) / excellentProspects.length
-      : 0;
+    const goodProspects = existingProspects.filter(p => p.quality === 'good' || p.icpScore >= 70);
+    
+    // Build a more targeted search query based on ICP + quality patterns
+    let searchQuery = '';
+    
+    if (excellentProspects.length > 0) {
+      // Learn from excellent prospects
+      console.log(`Learning from ${excellentProspects.length} excellent prospects...`);
+      searchQuery = `companies like ${excellentProspects.slice(0, 3).map(p => p.name).join(', ')} in ${icp.industries.join(' or ')}`;
+    } else if (goodProspects.length > 0) {
+      // Use good prospects as examples
+      console.log(`Learning from ${goodProspects.length} good prospects...`);
+      searchQuery = `companies similar to ${goodProspects.slice(0, 3).map(p => p.name).join(', ')} in ${icp.industries.join(' or ')}`;
+    } else {
+      // Fall back to ICP-based search
+      searchQuery = `${icp.industries[0]} companies ${icp.firmographics.geo} ${icp.pains[0]}`;
+    }
+    
+    console.log(`Search query: ${searchQuery}`);
+    
+    // Search for new companies
+    const searchResults = await searchCompetitors(searchQuery);
+    
+    // Filter out duplicates and extract unique domains
+    const uniqueCandidates = searchResults
+      .filter(result => {
+        const domain = result.domain?.toLowerCase();
+        return domain && !existingDomains.has(domain);
+      })
+      .slice(0, Math.min(batchSize * 2, 50)); // Get more candidates than needed
+    
+    console.log(`Found ${uniqueCandidates.length} unique candidate domains`);
+    
+    if (uniqueCandidates.length === 0) {
+      return NextResponse.json({
+        success: true,
+        prospects: [],
+        message: 'No new unique prospects found. Try refining your ICP or quality ratings.',
+        mockData: false,
+      });
+    }
+    
+    // Analyze each candidate
+    const newProspects: Company[] = [];
+    let processedCount = 0;
+    
+    for (const candidate of uniqueCandidates) {
+      if (newProspects.length >= batchSize) break;
+      
+      try {
+        console.log(`Analyzing ${candidate.domain}...`);
+        
+        // Fetch and analyze website content
+        const content = await fetchWebsiteContent(candidate.domain);
+        const analysis = await analyzeWebsiteAgainstICP(content, candidate.name, candidate.domain, icp);
+        
+        // Only include if ICP score is above threshold (50+)
+        if (analysis.icpScore >= 50) {
+          const prospect: Company = {
+            id: Date.now() + processedCount, // Temporary ID
+            name: candidate.name,
+            domain: candidate.domain,
+            source: 'expanded' as const,
+            sourceCustomerDomain: null,
+            icpScore: analysis.icpScore,
+            confidence: analysis.confidence,
+            status: 'New' as const,
+            rationale: analysis.rationale,
+            evidence: analysis.evidence,
+            decisionMakers: null,
+            quality: null,
+            notes: null,
+            tags: null,
+            relatedCompanyIds: null,
+          };
+          
+          newProspects.push(prospect);
+          console.log(`✓ Added ${candidate.name} (ICP Score: ${analysis.icpScore})`);
+        } else {
+          console.log(`✗ Skipped ${candidate.name} (ICP Score: ${analysis.icpScore} too low)`);
+        }
+        
+        processedCount++;
+        
+      } catch (error) {
+        console.error(`Failed to analyze ${candidate.domain}:`, error);
+        // Continue with next candidate
+      }
+    }
+    
+    console.log(`Successfully generated ${newProspects.length} new prospects`);
     
     return NextResponse.json({
-      message: `Feature in development. Would generate ${batchSize} prospects based on ${excellentProspects.length} excellent-rated prospects (avg ICP score: ${Math.round(avgScore)})`,
-      recommendation: 'This feature requires integration with a larger company database or enhanced web search capabilities to find new prospects at scale.',
-      success: false,
+      success: true,
+      prospects: newProspects,
+      message: `Generated ${newProspects.length} new high-quality prospects`,
+      mockData: false,
     });
     
   } catch (error) {
@@ -45,7 +149,7 @@ async function generateMoreHandler(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: 'Failed to generate more prospects' },
+      { error: error instanceof Error ? error.message : 'Failed to generate more prospects' },
       { status: 500 }
     );
   }

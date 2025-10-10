@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import InputsPanel from '@/components/InputsPanel';
 import ICPReviewPanel from '@/components/ICPReviewPanel';
+import ICPProfileModal from '@/components/ICPProfileModal';
 import MarketMapPanel from '@/components/MarketMapPanel';
 import type { Company, Cluster, Ad, Customer, ICP } from '@/types';
 
@@ -20,6 +21,7 @@ export default function HomePage() {
   const [extractedICP, setExtractedICP] = useState<ICP | null>(null);
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [showICPModal, setShowICPModal] = useState(false);
 
   // Load existing data on mount
   useEffect(() => {
@@ -335,6 +337,12 @@ export default function HomePage() {
     toast.success(`${prospect.name} marked as customer! Click "Add More Customers" to run a new analysis with this updated customer base.`);
   };
 
+  const handleICPUpdate = (updatedICP: ICP) => {
+    setExtractedICP(updatedICP);
+    localStorage.setItem('gtm-icp', JSON.stringify(updatedICP));
+    toast.success('ICP Profile updated successfully');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
@@ -346,6 +354,16 @@ export default function HomePage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
+            {extractedICP && (
+              <button
+                onClick={() => setShowICPModal(true)}
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center text-sm sm:text-base"
+              >
+                <FileText className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">ICP Profile</span>
+                <span className="sm:hidden">ICP</span>
+              </button>
+            )}
             {(hasData || analysisStep === 'results') && (
               <button
                 onClick={handleBackToInput}
@@ -475,6 +493,14 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* ICP Profile Modal */}
+      <ICPProfileModal
+        isOpen={showICPModal}
+        onClose={() => setShowICPModal(false)}
+        icp={extractedICP}
+        onUpdate={handleICPUpdate}
+      />
     </div>
   );
 }

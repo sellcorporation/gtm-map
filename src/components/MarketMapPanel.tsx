@@ -81,27 +81,67 @@ export default function MarketMapPanel({
   };
 
   const handleGenerateMore = async () => {
+    if (!icp) {
+      toast.error('ICP profile not found. Please run a new analysis first.');
+      return;
+    }
+
     setIsGenerating(true);
     
     try {
+      toast.info(`Searching for ${batchSize} new high-quality prospects...`);
+      
       const response = await fetch('/api/generate-more', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           batchSize,
-          existingProspects: prospects.map(p => ({ id: p.id, quality: p.quality, icpScore: p.icpScore })),
+          icp,
+          existingProspects: prospects.map(p => ({ 
+            id: p.id, 
+            domain: p.domain,
+            name: p.name,
+            quality: p.quality, 
+            icpScore: p.icpScore,
+            rationale: p.rationale
+          })),
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate prospects');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate prospects');
       }
 
-      toast.info('Generate More feature is in development. Will be available soon!');
-      setShowGenerateDialog(false);
+      const data = await response.json();
+      
+      if (data.success && data.prospects.length > 0) {
+        // Add new prospects to the list
+        data.prospects.forEach((prospect: Company) => {
+          onProspectUpdate(prospect);
+        });
+        
+        // Update localStorage
+        const savedData = localStorage.getItem('gtm-data');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          parsed.prospects = [...parsed.prospects, ...data.prospects];
+          localStorage.setItem('gtm-data', JSON.stringify(parsed));
+        }
+        
+        toast.success(`Successfully added ${data.prospects.length} new prospects!`);
+        setShowGenerateDialog(false);
+        
+        // Switch to prospects tab to show new results
+        setActiveTab('prospects');
+      } else {
+        toast.info(data.message || 'No new prospects found. Try adjusting your ICP or rating more prospects.');
+        setShowGenerateDialog(false);
+      }
     } catch (error) {
       console.error('Generate more failed:', error);
-      toast.error('Failed to generate more prospects');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate more prospects';
+      toast.error(errorMessage);
     } finally {
       setIsGenerating(false);
     }

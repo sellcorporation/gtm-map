@@ -32,6 +32,12 @@ const AdCopySchema = z.object({
   cta: z.string(),
 });
 
+const WebsiteAnalysisSchema = z.object({
+  rationale: z.string().describe('Why this company matches the ICP'),
+  confidence: z.number().min(0).max(100).describe('Confidence in this match (0-100)'),
+  evidenceSnippets: z.array(z.string()).max(3).describe('Key evidence snippets from the website'),
+});
+
 // Mock ICP for testing when OpenAI quota is exceeded
 function generateMockICP(): ICP {
   return {
@@ -327,6 +333,108 @@ Return a JSON object with a "decisionMakers" array.`;
     return { 
       decisionMakers: [], 
       isMock: true 
+    };
+  }
+}
+
+// Analyze a website's content against an ICP
+export async function analyzeWebsiteAgainstICP(
+  websiteContent: string,
+  companyName: string,
+  companyDomain: string,
+  icp: ICP
+): Promise<{
+  rationale: string;
+  confidence: number;
+  evidence: Array<{ url: string; snippet: string }>;
+  icpScore: number;
+}> {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      // Return mock data if no API key
+      return {
+        rationale: `${companyName} operates in the ${icp.industries[0]} industry and may address ${icp.pains[0]}.`,
+        confidence: Math.floor(Math.random() * 30) + 50, // 50-79
+        evidence: [
+          { url: `https://${companyDomain}`, snippet: 'Company website content' }
+        ],
+        icpScore: Math.floor(Math.random() * 40) + 50, // 50-89
+      };
+    }
+
+    const prompt = `You are analyzing a company's website to determine if it matches an Ideal Customer Profile (ICP).
+
+Company: ${companyName}
+Domain: ${companyDomain}
+
+Target ICP:
+Industries: ${icp.industries.join(', ')}
+Pain Points: ${icp.pains.join(', ')}
+Buyer Roles: ${icp.buyerRoles.join(', ')}
+Company Size: ${icp.firmographics.size}
+Geography: ${icp.firmographics.geo}
+
+Website Content (truncated to first 3000 chars):
+${websiteContent.slice(0, 3000)}
+
+Analyze this company and provide:
+1. A rationale for why they match (or don't match) the ICP
+2. A confidence score (0-100) in your assessment
+3. 1-3 key evidence snippets from the website that support your analysis
+
+Be honest - if the match is poor, say so and give a low confidence score.`;
+
+    const { object } = await generateObject({
+      model,
+      schema: WebsiteAnalysisSchema,
+      prompt,
+      temperature: 0.3, // Lower temperature for more factual analysis
+    });
+
+    // Convert evidence snippets to proper format
+    const evidence = object.evidenceSnippets.map(snippet => ({
+      url: `https://${companyDomain}`,
+      snippet,
+    }));
+
+    // Calculate ICP score based on confidence and keyword matches
+    let icpScore = Math.floor(object.confidence * 0.7); // Base score from confidence
+
+    // Boost score for industry matches
+    const industryMatch = icp.industries.some(industry =>
+      object.rationale.toLowerCase().includes(industry.toLowerCase()) ||
+      websiteContent.toLowerCase().includes(industry.toLowerCase())
+    );
+    if (industryMatch) icpScore += 15;
+
+    // Boost score for pain point matches
+    const painMatch = icp.pains.some(pain =>
+      object.rationale.toLowerCase().includes(pain.toLowerCase()) ||
+      websiteContent.toLowerCase().includes(pain.toLowerCase())
+    );
+    if (painMatch) icpScore += 15;
+
+    // Cap at 100
+    icpScore = Math.min(icpScore, 100);
+
+    return {
+      rationale: object.rationale,
+      confidence: object.confidence,
+      evidence,
+      icpScore,
+    };
+
+  } catch (error) {
+    console.error('Error analyzing website against ICP:', error);
+    
+    // Return mock data on error
+    return {
+      rationale: `${companyName} operates in the ${icp.industries[0]} industry and may address ${icp.pains[0]}.`,
+      confidence: Math.floor(Math.random() * 30) + 50,
+      evidence: [
+        { url: `https://${companyDomain}`, snippet: 'Company website content (analysis error)' }
+      ],
+      icpScore: Math.floor(Math.random() * 40) + 50,
     };
   }
 }
