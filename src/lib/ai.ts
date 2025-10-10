@@ -123,7 +123,8 @@ export async function findCompetitors(
   companyDomain: string,
   companyName: string,
   icp: ICP,
-  searchResults: Array<{ title: string; snippet: string; url: string }>
+  searchResults: Array<{ title: string; snippet: string; url: string }>,
+  maxResults: number = 10
 ): Promise<{ competitors: Competitor[]; isMock: boolean }> {
   try {
     // Check if OpenAI API key is available and has quota
@@ -140,7 +141,8 @@ export async function findCompetitors(
       .replace('{companyDomain}', companyDomain)
       .replace('{companyName}', companyName)
       .replace('{icp}', JSON.stringify(icp, null, 2))
-      .replace('{searchResults}', searchResultsText);
+      .replace('{searchResults}', searchResultsText)
+      .replace('Return up to 10 REAL competitors', `Return up to ${maxResults} REAL competitors`);
 
     const { object } = await generateObject({
       model,

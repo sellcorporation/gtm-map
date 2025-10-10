@@ -116,44 +116,70 @@ export default function MarketMapPanel({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate prospects');
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      
-      if (data.success && data.prospects.length > 0) {
-        // Add new prospects to the list
-        data.prospects.forEach((prospect: Company) => {
-          onProspectUpdate(prospect);
-        });
-        
-        // Update localStorage
-        const savedData = localStorage.getItem('gtm-data');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          parsed.prospects = [...parsed.prospects, ...data.prospects];
-          localStorage.setItem('gtm-data', JSON.stringify(parsed));
-        }
-        
-        toast.success(`Successfully added ${data.prospects.length} new prospects!`);
-        
-        // Switch to prospects tab to show new results
-        setActiveTab('prospects');
-      } else {
-        toast.info(data.message || 'No new prospects found. Try adjusting your ICP or rating more prospects.');
+      // Handle SSE stream
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response body');
       }
-      
-      // Hide progress panel after completion
-      setTimeout(() => {
-        setShowGenerateProgress(false);
-        setGenerateProgress([]);
-      }, 1000);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.message) {
+              // Add progress message
+              setGenerateProgress(prev => [...prev, data.message]);
+            }
+
+            if (data.result) {
+              // Final result received
+              if (data.result.prospects && data.result.prospects.length > 0) {
+                // Fetch updated prospects from database
+                const updatedResponse = await fetch('/api/prospects');
+                if (updatedResponse.ok) {
+                  const updatedData = await updatedResponse.json();
+                  updatedData.prospects.forEach((prospect: Company) => {
+                    onProspectUpdate(prospect);
+                  });
+                }
+
+                toast.success(`Successfully added ${data.result.prospects.length} new prospects!`);
+                setActiveTab('prospects');
+              } else {
+                toast.info(data.result.message || 'No new prospects found. Try adjusting your ICP or rating more prospects.');
+              }
+              
+              // Hide progress panel after completion
+              setTimeout(() => {
+                setShowGenerateProgress(false);
+                setGenerateProgress([]);
+              }, 2000);
+            }
+
+            if (data.error) {
+              throw new Error(data.error);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Generate more failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate more prospects';
       toast.error(errorMessage);
       setShowGenerateProgress(false);
+      setGenerateProgress([]);
     } finally {
       setIsGenerating(false);
     }

@@ -278,11 +278,14 @@ async function analyseHandler(request: NextRequest) {
           const searchResults = await searchCompetitors(customer.domain, icp.industries[0] || '');
       
           // Find competitors using AI
+          // Calculate how many more prospects we need
+          const remainingNeeded = maxProspects - allCompetitors.length;
           const { competitors, isMock: isMock } = await findCompetitors(
             customer.domain,
             customer.name,
             icp,
-            searchResults
+            searchResults,
+            remainingNeeded // Pass the batch size to AI
           );
           
           sendMessage(`✅ Found ${competitors.length} potential competitors for ${customer.name}`);
@@ -342,16 +345,49 @@ async function analyseHandler(request: NextRequest) {
           allCompetitors.push(...competitorsToAdd);
         }
     
-    // Filter out invalid domains (those we couldn't find)
-    sendMessage(`\n🔍 Validating domains...`);
+    // Helper function to validate if a name is a real company name
+    const isValidCompanyName = (name: string): boolean => {
+      const lowerName = name.toLowerCase();
+      
+      // Filter out article titles and aggregator listings
+      const badPatterns = [
+        /^\d+\s+(types|ways|best|top|great)/i, // "11 Types of...", "Top 10..."
+        /^(best|top)\s+\d+/i, // "Best 10...", "Top 5..."
+        /surveyors?\s+in\s+/i, // "Surveyors in New York"
+        /\sin\s+\w+,?\s+\w+$/i, // Ends with "in Location, State"
+        /^the\s+best/i, // "THE BEST..."
+        /^the\s+\d+/i, // "The 10..."
+        /what\s+(are|is)\s+the/i, // "What are the..."
+        /(directory|list|guide|review)/i, // Directory/list indicators
+        /\d+\s+best/i, // "10 Best..."
+      ];
+      
+      for (const pattern of badPatterns) {
+        if (pattern.test(name)) {
+          return false;
+        }
+      }
+      
+      return true;
+    };
+    
+    // Filter out invalid domains and bad company names
+    sendMessage(`\n🔍 Validating company names and domains...`);
     const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
     const validCompetitors = allCompetitors.filter(competitor => {
+      // Validate company name first
+      if (!isValidCompanyName(competitor.name)) {
+        sendMessage(`⚠️ Filtered out invalid name: "${competitor.name}"`);
+        return false;
+      }
+      
+      // Then validate domain
       const domain = competitor.domain.toLowerCase().trim();
-      // Filter out obviously invalid domains
       if (invalidDomains.includes(domain) || domain.length < 3 || !domain.includes('.')) {
         sendMessage(`⚠️ Skipping ${competitor.name}: Invalid domain "${competitor.domain}"`);
         return false;
       }
+      
       return true;
     });
     
@@ -473,7 +509,7 @@ async function analyseHandler(request: NextRequest) {
                         // Filter out aggregator/directory sites
                         const aggregators = ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com', 
                                             'clutch.co', 'yelp.com', 'trustpilot.com', 'ricsfirms.com',
-                                            'wikipedia.org', 'crunchbase.com'];
+                                            'wikipedia.org', 'crunchbase.com', 'comparemymove.com', 'propertyinspect.com'];
                         
                         for (const result of data.results) {
                           const url = result.url;
