@@ -132,6 +132,9 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
       return;
     }
 
+    // Sanitize website URL too!
+    const cleanWebsiteUrl = sanitizeDomain(websiteUrl);
+
     // Get customers and sanitize domains
     const currentCustomers = (inputMode === 'csv' ? customers : manualCustomers.filter(c => c.name.trim() && c.domain.trim()))
       .map(customer => ({
@@ -145,7 +148,7 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
     }
 
     setError('');
-    onAnalyse(websiteUrl, currentCustomers);
+    onAnalyse(cleanWebsiteUrl, currentCustomers);
   };
 
   const currentCustomers = inputMode === 'csv' ? customers : manualCustomers.filter(c => c.name.trim() && c.domain.trim());
@@ -173,10 +176,13 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
           type="url"
           value={websiteUrl}
           onChange={(e) => setWebsiteUrl(e.target.value)}
-          placeholder="https://yourcompany.com"
+          placeholder="yourcompany.com (any format works)"
           className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           disabled={isLoading}
         />
+        <p className="text-xs text-gray-500 mt-1">
+          💡 Paste any format: <code className="text-xs bg-gray-100 px-1 rounded">https://www.example.com</code>, <code className="text-xs bg-gray-100 px-1 rounded">example.com</code>, or <code className="text-xs bg-gray-100 px-1 rounded">www.example.com</code>
+        </p>
       </div>
 
       {/* Input Mode Toggle */}
@@ -251,6 +257,9 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
                 <p className="text-sm text-gray-500">
                   Expected columns: name, domain, notes (optional)
                 </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Domains in any format: example.com, www.example.com, https://example.com
+                </p>
               </div>
             )}
           </div>
@@ -299,13 +308,13 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Domain *
+                      Domain * <span className="text-gray-400 font-normal">(any format)</span>
                     </label>
                     <input
                       type="text"
                       value={customer.domain}
                       onChange={(e) => updateManualCustomer(index, 'domain', e.target.value)}
-                      placeholder="e.g., acme.com"
+                      placeholder="acme.com or https://www.acme.com"
                       className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       disabled={isLoading}
                     />

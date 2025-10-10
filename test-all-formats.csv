@@ -1,0 +1,10 @@
+name,domain,notes
+Company A,example.com,Plain domain
+Company B,www.example.co.uk,With www prefix
+Company C,https://example.com,With https protocol
+Company D,http://www.example.com,With http and www
+Company E,HTTPS://WWW.EXAMPLE.COM/,Uppercase with trailing slash
+Company F,http://example.com/,With protocol and slash
+Company G,www.example.com/,With www and slash
+Company H,Example.COM,Mixed case
+
