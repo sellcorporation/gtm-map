@@ -52,12 +52,18 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   // Find competitors state
   const [findingCompetitors, setFindingCompetitors] = useState<Set<number>>(new Set());
   const [competitorProgress, setCompetitorProgress] = useState<Array<{ message: string; type: 'info' | 'success' | 'error' }>>([]);
-  const progressEndRef = useRef<HTMLDivElement>(null);
+  const progressContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to latest progress message
+  // Auto-scroll progress panel to bottom (but user can scroll up freely)
   useEffect(() => {
-    if (competitorProgress.length > 0) {
-      progressEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (competitorProgress.length > 0 && progressContainerRef.current) {
+      // Only auto-scroll if user is already near the bottom
+      const container = progressContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      if (isNearBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
   }, [competitorProgress]);
   
@@ -590,22 +596,37 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
       // Handle final result
       if (finalResult && finalResult.success && finalResult.competitors.length > 0) {
-        // Add new competitors to the list
-        finalResult.competitors.forEach((competitor: Company) => {
-          onProspectUpdate(competitor);
-        });
-
-        // Update localStorage
+        // Add new competitors to the list - batch update
+        const newCompetitors = finalResult.competitors as Company[];
+        
+        // Update localStorage first
         const savedData = localStorage.getItem('gtm-data');
         if (savedData) {
           const parsed = JSON.parse(savedData);
-          parsed.prospects = [...(parsed.prospects || []), ...finalResult.competitors];
+          parsed.prospects = [...(parsed.prospects || []), ...newCompetitors];
           localStorage.setItem('gtm-data', JSON.stringify(parsed));
         }
 
-        toast.success(`Found and added ${finalResult.competitors.length} competitor(s) of ${prospect.name}!`);
+        // Add to UI - batch update by calling onProspectUpdate for each
+        // This ensures the parent component's state is updated
+        newCompetitors.forEach((competitor: Company) => {
+          onProspectUpdate(competitor);
+        });
+
+        // Force a small delay to ensure state updates have processed
+        setTimeout(() => {
+          toast.success(`Found and added ${newCompetitors.length} competitor(s) of ${prospect.name}!`);
+        }, 100);
+        
+        // Clear progress after a delay
+        setTimeout(() => {
+          setCompetitorProgress([]);
+        }, 3000);
       } else if (finalResult) {
         toast.info(finalResult.message || `No new competitors found for ${prospect.name}.`);
+        setTimeout(() => {
+          setCompetitorProgress([]);
+        }, 2000);
       }
 
     } catch (error) {
@@ -740,47 +761,51 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
   return (
     <>
-      {/* Competitor Search Progress Panel */}
+      {/* Competitor Search Progress Panel - Fixed Side Panel */}
       {competitorProgress.length > 0 && (
-        <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg shadow-lg relative">
-          <div className="flex items-center justify-between mb-3">
+        <div className="fixed left-4 top-20 bottom-4 w-80 z-50 flex flex-col bg-white border-2 border-blue-300 rounded-lg shadow-2xl">
+          <div className="flex items-center justify-between p-3 border-b border-blue-200 bg-blue-50">
             <h3 className="text-sm font-semibold text-blue-900 flex items-center">
               <Search className="h-4 w-4 mr-2 animate-pulse" />
-              Finding Competitors - Live Progress
+              Finding Competitors
             </h3>
             <button
               onClick={() => setCompetitorProgress([])}
-              className="text-blue-600 hover:text-blue-800"
+              className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-100 rounded"
               title="Close progress panel"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="space-y-2 max-h-60 overflow-y-auto bg-white p-3 rounded border border-blue-200">
+          <div 
+            ref={progressContainerRef}
+            className="flex-1 overflow-y-auto p-3 space-y-2"
+          >
             {competitorProgress.map((progress, idx) => (
               <div 
                 key={idx} 
-                className={`text-xs flex items-start animate-fade-in ${
+                className={`text-xs flex items-start ${
                   progress.type === 'success' ? 'text-green-700' : 
                   progress.type === 'error' ? 'text-red-700' : 
                   'text-blue-700'
                 }`}
               >
-                <span className="mr-2 flex-shrink-0">{getProgressIcon(progress.type)}</span>
-                <span className="flex-1">{progress.message}</span>
+                <span className="mr-2 flex-shrink-0 mt-0.5">{getProgressIcon(progress.type)}</span>
+                <span className="flex-1 leading-relaxed">{progress.message}</span>
               </div>
             ))}
-            <div ref={progressEndRef} />
-            {findingCompetitors.size > 0 && (
-              <div className="text-xs text-blue-600 flex items-center mt-2 pt-2 border-t border-blue-200">
+          </div>
+          {findingCompetitors.size > 0 && (
+            <div className="p-3 border-t border-blue-200 bg-blue-50">
+              <div className="text-xs text-blue-600 flex items-center">
                 <svg className="animate-spin h-3 w-3 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Processing...
+                <span className="font-medium">Processing...</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -278,15 +278,25 @@ export default function HomePage() {
       return;
     }
 
-    // Update prospects state
-    setProspects(prev =>
-      prev.map(p => p.id === updatedProspect.id ? updatedProspect : p)
-    );
+    // Check if prospect exists (update) or is new (add)
+    setProspects(prev => {
+      const existingIndex = prev.findIndex(p => p.id === updatedProspect.id);
+      
+      if (existingIndex >= 0) {
+        // Update existing prospect
+        return prev.map(p => p.id === updatedProspect.id ? updatedProspect : p);
+      } else {
+        // Add new prospect
+        return [...prev, updatedProspect];
+      }
+    });
 
     // Update localStorage
-    const updatedProspects = prospects.map(p => 
-      p.id === updatedProspect.id ? updatedProspect : p
-    );
+    const existingIndex = prospects.findIndex(p => p.id === updatedProspect.id);
+    const updatedProspects = existingIndex >= 0
+      ? prospects.map(p => p.id === updatedProspect.id ? updatedProspect : p)
+      : [...prospects, updatedProspect];
+      
     localStorage.setItem('gtm-data', JSON.stringify({
       prospects: updatedProspects,
       clusters,
