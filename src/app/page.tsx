@@ -204,25 +204,45 @@ export default function HomePage() {
     toast.info('Add more customers to improve your prospect list');
   };
 
-  const handleClearAnalysis = () => {
-    // Clear all stored data
-    localStorage.removeItem('gtm-data');
-    localStorage.removeItem('gtm-icp');
-    localStorage.removeItem('gtm-website-url');
-    localStorage.removeItem('gtm-customers');
-    localStorage.removeItem('gtm-analysis-step');
+  const handleClearAnalysis = async () => {
+    if (!confirm('Are you sure you want to clear all data? This will delete all prospects from the database and cannot be undone.')) {
+      return;
+    }
     
-    // Reset state
-    setProspects([]);
-    setClusters([]);
-    setAds([]);
-    setHasData(false);
-    setAnalysisStep('input');
-    setExtractedICP(null);
-    setWebsiteUrl('');
-    setCustomers([]);
-    
-    toast.success('Analysis cleared');
+    try {
+      // Call API to clear database
+      const response = await fetch('/api/clear-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to clear data');
+      }
+      
+      // Clear all stored data from localStorage
+      localStorage.removeItem('gtm-data');
+      localStorage.removeItem('gtm-icp');
+      localStorage.removeItem('gtm-website-url');
+      localStorage.removeItem('gtm-customers');
+      localStorage.removeItem('gtm-analysis-step');
+      
+      // Reset state
+      setProspects([]);
+      setClusters([]);
+      setAds([]);
+      setHasData(false);
+      setAnalysisStep('input');
+      setExtractedICP(null);
+      setWebsiteUrl('');
+      setCustomers([]);
+      
+      toast.success('All data cleared from database successfully');
+    } catch (error) {
+      console.error('Error clearing data:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to clear data');
+    }
   };
 
   const handleStatusUpdate = async (id: number, status: string) => {

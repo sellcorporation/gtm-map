@@ -474,27 +474,28 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     }
 
     try {
-      // In mock mode, handle deletions client-side only
+      // Call the API to delete from database
+      const response = await fetch('/api/company', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: id }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete company');
+      }
+      
       // Signal deletion to parent component using a special marker
       const companyToDelete = prospects.find(p => p.id === id);
       if (companyToDelete) {
-        // Use domain as the deletion marker since it's unique
         onProspectUpdate({ ...companyToDelete, id, status: 'Lost', domain: `__DELETE_${id}__` } as Company);
-        toast.success('Company deleted successfully');
       }
       
-      // If we had a real database connection, we'd do:
-      // const response = await fetch('/api/company', {
-      //   method: 'DELETE',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ companyId: id }),
-      // });
-      // if (!response.ok) {
-      //   throw new Error('Failed to delete company');
-      // }
+      toast.success('Company deleted from database successfully');
     } catch (error) {
       console.error('Error deleting company:', error);
-      toast.error('Failed to delete company');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete company');
     }
   };
 
