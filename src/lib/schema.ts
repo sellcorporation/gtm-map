@@ -16,7 +16,7 @@ export const companies = pgTable('companies', {
   userId: text('user_id').notNull(), // associate with user
   name: text('name').notNull(),
   domain: text('domain').notNull(),
-  source: text('source', { enum: ['seed', 'expanded'] }).notNull(),
+  source: text('source', { enum: ['seed', 'expanded', 'imported'] }).notNull(),
   sourceCustomerDomain: text('source_customer_domain'),
   icpScore: integer('icp_score').notNull(),
   confidence: integer('confidence').notNull(),

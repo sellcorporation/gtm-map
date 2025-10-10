@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown, Search, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
+import BulkImportModal from './BulkImportModal';
 import type { Company, Evidence, DecisionMaker, ICP } from '@/types';
 
 type SortField = 'name' | 'domain' | 'source' | 'confidence' | 'icpScore' | 'status' | 'quality';
@@ -28,6 +29,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   const [editedDMData, setEditedDMData] = useState<DecisionMaker | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [addingManualDM, setAddingManualDM] = useState<number | null>(null);
@@ -739,6 +741,22 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     }
   };
 
+  const handleImportComplete = async () => {
+    // Refresh prospects list from database
+    try {
+      const response = await fetch('/api/prospects');
+      if (response.ok) {
+        const data = await response.json();
+        // Update prospects via parent component
+        data.prospects.forEach((prospect: Company) => {
+          onProspectUpdate(prospect);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh prospects:', error);
+    }
+  };
+
   if (prospects.length === 0 && !addingManualProspect) {
     return (
       <div className="text-center py-12">
@@ -809,6 +827,28 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           )}
         </div>
       )}
+
+      {/* Action Buttons */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Import Prospects
+          </button>
+          {addingManualProspect && (
+            <button
+              onClick={startAddingManualProspect}
+              className="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add Manually
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ICP Score Filter */}
       <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -1000,13 +1040,13 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                     return (
                       <a
                         href={prospect.domain.startsWith('http') ? prospect.domain : `https://${prospect.domain}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    target="_blank"
+                    rel="noopener noreferrer"
                         className="text-sm text-blue-600 hover:text-blue-800 max-w-[180px] truncate block"
                         title={prospect.domain}
-                      >
-                        {prospect.domain}
-                      </a>
+                  >
+                    {prospect.domain}
+                  </a>
                     );
                   })()}
                 </td>
@@ -1633,6 +1673,13 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           }}
         />
       )}
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportComplete={handleImportComplete}
+      />
     </>
   );
 }
