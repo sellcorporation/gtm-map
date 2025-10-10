@@ -85,23 +85,42 @@ async function analyzeCompany(
   rationale: string;
   evidence: Array<{ url: string; snippet?: string }>;
 }> {
-  const ANALYSIS_PROMPT = `You are analyzing "${companyName}" (${companyDomain}) to determine if they match this Ideal Customer Profile (ICP):
+  const ANALYSIS_PROMPT = `You are analyzing "${companyName}" (${companyDomain}) to determine if they are a good fit for a B2B solution.
 
-**Solution Provided:** ${icp.solution}
-**Key Workflows:** ${icp.workflows.join(', ')}
-**Target Industries:** ${icp.industries.join(', ')}
-**Target Buyer Roles:** ${icp.buyerRoles.join(', ')}
-**Company Size:** ${icp.firmographics.size}
-**Geography:** ${icp.firmographics.geo}
+CRITICAL UNDERSTANDING:
+We are selling: ${icp.solution}
+We are NOT looking for: Companies that provide the same solution as us
+We ARE looking for: Companies that PERFORM these workflows and would BENEFIT from our solution
+
+**TARGET CUSTOMER WORKFLOWS (activities they do that our solution helps with):**
+${icp.workflows.map(w => `- ${w}`).join('\n')}
+
+**Target ICP Context:**
+Industries: ${icp.industries.join(', ')}
+Buyer Roles: ${icp.buyerRoles.join(', ')}
+Company Size: ${icp.firmographics.size}
+Geography: ${icp.firmographics.geo}
 
 **Website Content:**
 ${websiteContent}
 
+SCORING CRITERIA:
+1. Industry Match (0-25): Is this company in the right industry?
+2. Geography Match (0-20): Are they in the target geography?
+3. Workflow Relevance (0-40): Does this company PERFORM these workflows?
+   - HIGHEST WEIGHT - Look for evidence they DO these activities (not that they provide software/tools)
+   - IGNORE whether they use software or manual processes - we care if they DO the work
+4. Company Size Match (0-15): Similar scale to target?
+
+IMPORTANT:
+- A property surveyor that conducts inspections is a PERFECT match for inspection software
+- Don't penalize them for not being a software company - that's WHY they need our solution!
+
 Analyze how well this company matches the ICP. Provide:
-1. **ICP Score (0-100):** How well they match the ICP criteria
-2. **Confidence (0-100):** How confident you are in this assessment based on available evidence
-3. **Rationale:** A clear explanation of why they do or don't match
-4. **Evidence:** URLs and snippets from their website that support your assessment
+1. **ICP Score (0-100):** How well they match (workflow-weighted)
+2. **Confidence (0-100):** Based on evidence strength (3+ sources = 75-90, 2 sources = 60-70, 1 = ≤55)
+3. **Rationale:** Explain if they DO these workflows (not if they sell the same solution)
+4. **Evidence:** URLs and snippets proving they perform these activities
 
 Be objective and evidence-based.`;
 

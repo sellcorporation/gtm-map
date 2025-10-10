@@ -363,11 +363,14 @@ export async function analyzeWebsiteAgainstICP(
       };
     }
 
-    const prompt = `You are analyzing a company's website to determine if they would benefit from a specific solution.
+    const prompt = `You are analyzing a company's website to determine if they are a good fit for a B2B solution.
 
-YOUR SOLUTION: ${icp.solution}
+CRITICAL UNDERSTANDING:
+We are selling: ${icp.solution}
+We are NOT looking for: Companies that provide the same solution as us
+We ARE looking for: Companies that PERFORM these workflows and would BENEFIT from our solution
 
-Key workflows it enables:
+TARGET CUSTOMER WORKFLOWS (activities they do that our solution helps with):
 ${icp.workflows.map(w => `- ${w}`).join('\n')}
 
 COMPANY TO ANALYZE: ${companyName}
@@ -386,11 +389,18 @@ SCORING CRITERIA (0-100):
 
 1. Industry Match (0-25): Is this company in the right industry?
 2. Geography Match (0-20): Are they in the target geography?
-3. Workflow Relevance (0-40): Do they have workflows that match our solution?
+3. Workflow Relevance (0-40): Does this company PERFORM these workflows?
    - HIGHEST WEIGHT - this is the key question
-   - Look for evidence they do these activities in-house
-   - Example: If solution is "inspection software", do they conduct inspections?
+   - Look for evidence they DO these activities (not that they provide software/tools for them)
+   - Example: If workflows include "conduct property inspections" → Do they conduct inspections?
+   - Example: If workflows include "produce survey reports" → Do they produce reports?
+   - IGNORE whether they use software or manual processes - we care if they DO the work
 4. Company Size Match (0-15): Similar scale to target?
+
+IMPORTANT: 
+- A property surveyor company that conducts inspections is a PERFECT match for inspection software
+- A construction firm that manages projects is a PERFECT match for project management software
+- Don't penalize them for not being a software company - that's WHY they need our solution!
 
 CONFIDENCE RULES (STRICTLY ENFORCE):
 - 3+ solid evidence sources: 75-90 confidence
@@ -398,7 +408,7 @@ CONFIDENCE RULES (STRICTLY ENFORCE):
 - 1 source or weak evidence: ≤55 confidence
 
 Provide:
-1. Rationale (workflow-focused - explain if they do these activities)
+1. Rationale (workflow-focused - explain if they DO these activities, not if they sell the same solution)
 2. Confidence score (MUST follow rules above based on evidence count)
 3. 2-5 evidence snippets from the website
 4. Final ICP score (0-100, workflow-weighted)

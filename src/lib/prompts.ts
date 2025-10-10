@@ -8,9 +8,12 @@ Analyse the website text and identify:
    - Example: "Digital inspection and reporting software for property surveyors"
    - NOT vague like: "Productivity tools" or "Business software"
 
-2. KEY WORKFLOWS: What specific workflows does this solution enable? (what users DO with it)
-   - Example: "coordinate field inspections, produce branded PDF reports, manage compliance documentation"
-   - NOT vague like: "improve efficiency" or "better communication"
+2. KEY WORKFLOWS: What specific workflows do your TARGET CUSTOMERS perform? (activities they do in their daily work that your solution helps with)
+   - Think: "What do my customers DO that my solution makes easier?"
+   - Example for inspection software: "conduct property inspections, write survey reports, manage site documentation"
+   - Example for CRM: "track leads, manage customer relationships, forecast sales"
+   - NOT what the solution does: "provide digital tools" or "enable collaboration"
+   - These are the ACTIVITIES your prospects must be DOING to need your solution
 
 3. PRIMARY INDUSTRIES: Specific sectors (not broad categories like "technology")
    - Example: "Property surveying, building inspection" 
