@@ -21,9 +21,21 @@ export default function ICPReviewPanel({
 }: ICPReviewPanelProps) {
   const [editedICP, setEditedICP] = useState<ICP>(icp);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Store raw input strings to allow typing commas freely
+  const [rawInputs, setRawInputs] = useState({
+    industries: icp.industries.join(', '),
+    workflows: icp.workflows.join(', '),
+    buyerRoles: icp.buyerRoles.join(', '),
+  });
 
   useEffect(() => {
     setEditedICP(icp);
+    setRawInputs({
+      industries: icp.industries.join(', '),
+      workflows: icp.workflows.join(', '),
+      buyerRoles: icp.buyerRoles.join(', '),
+    });
   }, [icp]);
 
   const handleFieldChange = (field: keyof ICP, value: string | string[] | { size: string; geo: string }) => {
@@ -34,12 +46,22 @@ export default function ICPReviewPanel({
   };
 
   const handleArrayFieldChange = (field: 'industries' | 'workflows' | 'buyerRoles', value: string) => {
-    const array = value.split(',').map(item => item.trim()).filter(item => item.length > 0);
-    handleFieldChange(field, array);
+    // Just store the raw input, don't process it yet
+    setRawInputs(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleConfirm = () => {
-    onConfirm(editedICP);
+    // Parse the raw inputs into arrays before confirming
+    const finalICP: ICP = {
+      ...editedICP,
+      industries: rawInputs.industries.split(',').map(item => item.trim()).filter(item => item.length > 0),
+      workflows: rawInputs.workflows.split(',').map(item => item.trim()).filter(item => item.length > 0),
+      buyerRoles: rawInputs.buyerRoles.split(',').map(item => item.trim()).filter(item => item.length > 0),
+    };
+    onConfirm(finalICP);
   };
 
   return (
@@ -69,7 +91,7 @@ export default function ICPReviewPanel({
           {isEditing ? (
             <input
               type="text"
-              value={editedICP.industries.join(', ')}
+              value={rawInputs.industries}
               onChange={(e) => handleArrayFieldChange('industries', e.target.value)}
               placeholder="e.g., Property Surveying, Building Inspection"
               className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -123,7 +145,7 @@ export default function ICPReviewPanel({
           </label>
           {isEditing ? (
             <textarea
-              value={(editedICP.workflows || []).join(', ')}
+              value={rawInputs.workflows}
               onChange={(e) => handleArrayFieldChange('workflows', e.target.value)}
               placeholder="e.g., Coordinate inspections, Produce reports, Manage compliance"
               rows={3}
@@ -155,7 +177,7 @@ export default function ICPReviewPanel({
           {isEditing ? (
             <input
               type="text"
-              value={editedICP.buyerRoles.join(', ')}
+              value={rawInputs.buyerRoles}
               onChange={(e) => handleArrayFieldChange('buyerRoles', e.target.value)}
               placeholder="e.g., CTO, VP Engineering, Product Manager"
               className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
