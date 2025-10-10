@@ -39,6 +39,20 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     phone: '',
     contactStatus: 'Not Contacted',
   });
+  
+  // ICP Score filter with localStorage persistence
+  const [minICPScore, setMinICPScore] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('gtm-min-icp-score');
+      return saved ? parseInt(saved, 10) : 51;
+    }
+    return 51;
+  });
+
+  const handleICPScoreChange = (value: number) => {
+    setMinICPScore(value);
+    localStorage.setItem('gtm-min-icp-score', value.toString());
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -66,11 +80,14 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   };
 
   const sortedProspects = useMemo(() => {
+    // First filter by minimum ICP score
+    const filtered = prospects.filter(p => p.icpScore >= minICPScore);
+    
     if (!sortField || !sortDirection) {
-      return prospects;
+      return filtered;
     }
 
-    const sorted = [...prospects].sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       let aValue: string | number;
       let bValue: string | number;
 
@@ -121,7 +138,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     });
 
     return sorted;
-  }, [prospects, sortField, sortDirection]);
+  }, [prospects, sortField, sortDirection, minICPScore]);
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
@@ -464,6 +481,74 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
   return (
     <>
+      {/* ICP Score Filter */}
+      <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 flex items-center">
+              ICP Score Filter
+              <span className="ml-2 text-xs text-gray-500">
+                ({sortedProspects.length} of {prospects.length} prospects shown)
+              </span>
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Only show prospects with ICP score ≥ {minICPScore}%
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => handleICPScoreChange(0)}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              Show All
+            </button>
+            <button
+              onClick={() => handleICPScoreChange(70)}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              High Quality (70+)
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={minICPScore}
+            onChange={(e) => handleICPScoreChange(parseInt(e.target.value, 10))}
+            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+          />
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium text-gray-700 min-w-[3rem] text-right">
+              {minICPScore}%
+            </span>
+          </div>
+        </div>
+        
+        {/* Score ranges legend */}
+        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <span>0 (Poor Match)</span>
+          <span>50 (Medium)</span>
+          <span>100 (Perfect Match)</span>
+        </div>
+        
+        {/* Explanation */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-xs text-blue-800">
+            <strong>💡 Understanding the Scores:</strong><br/>
+            <strong>ICP Score</strong> = How well the prospect matches your Ideal Customer Profile (industry, pain points, size, etc.)<br/>
+            <strong>Confidence</strong> = How certain the AI is about its assessment (based on data quality and evidence strength)
+          </p>
+          <p className="text-xs text-blue-700 mt-2">
+            Example: <strong>ICP 95%, Confidence 80%</strong> = Excellent match, reliable data ✅<br/>
+            Example: <strong>ICP 10%, Confidence 75%</strong> = Poor match, but we&apos;re sure about it ❌<br/>
+            Example: <strong>ICP 85%, Confidence 30%</strong> = Might be good, verify manually ⚠️
+          </p>
+        </div>
+      </div>
+
       <div className="w-full overflow-x-auto" style={{ paddingTop: '180px', marginTop: '-180px' }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
