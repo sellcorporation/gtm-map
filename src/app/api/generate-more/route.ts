@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
-import { searchCompetitors } from '@/lib/search';
-import { fetchWebsiteContent } from '@/lib/prompts';
+import { searchCompetitors, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
-import type { ICP, Company } from '@/types';
+import type { Company } from '@/types';
 
 const GenerateMoreRequestSchema = z.object({
   batchSize: z.number().int().min(1).max(100), // Limit to 100 per request

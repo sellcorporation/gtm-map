@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Minus, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
 import type { Company, Evidence, DecisionMaker, ICP } from '@/types';

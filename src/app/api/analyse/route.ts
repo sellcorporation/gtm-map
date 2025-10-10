@@ -152,7 +152,7 @@ async function createClusters(prospects: Company[], icp: ICP) {
   const clusterRecords = [];
   const adRecords = [];
   
-  for (const [_key, { companyIds, label }] of validClusters) {
+  for (const { companyIds, label } of validClusters.values()) {
     const clusterProspects = prospects.filter(p => companyIds.includes(p.id));
     
     const avgIcpScore = companyIds.reduce((sum, id) => {
