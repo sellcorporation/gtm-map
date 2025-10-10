@@ -19,7 +19,7 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
   // Store raw input strings during edit mode to preserve commas while typing
   const [inputValues, setInputValues] = useState({
     industries: '',
-    pains: '',
+    workflows: '',
     buyerRoles: '',
   });
 
@@ -30,7 +30,7 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
       setEditedICP(icp);
       setInputValues({
         industries: icp.industries.join(', '),
-        pains: icp.pains.join(', '),
+        workflows: icp.workflows.join(', '),
         buyerRoles: icp.buyerRoles.join(', '),
       });
       setIsEditing(false); // Reset edit mode when reopening
@@ -46,7 +46,7 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
     
     // Parse the input values into arrays
     const industries = inputValues.industries.split(',').map(item => item.trim()).filter(item => item.length > 0);
-    const pains = inputValues.pains.split(',').map(item => item.trim()).filter(item => item.length > 0);
+    const workflows = inputValues.workflows.split(',').map(item => item.trim()).filter(item => item.length > 0);
     const buyerRoles = inputValues.buyerRoles.split(',').map(item => item.trim()).filter(item => item.length > 0);
     
     // Validate
@@ -54,8 +54,8 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
       toast.error('Please add at least one industry');
       return;
     }
-    if (pains.length === 0) {
-      toast.error('Please add at least one pain point');
+    if (workflows.length === 0) {
+      toast.error('Please add at least one workflow');
       return;
     }
     if (buyerRoles.length === 0) {
@@ -66,7 +66,7 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
     const updatedICP = {
       ...editedICP,
       industries,
-      pains,
+      workflows,
       buyerRoles,
     };
 
@@ -78,13 +78,13 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
     setEditedICP(icp);
     setInputValues({
       industries: icp.industries.join(', '),
-      pains: icp.pains.join(', '),
+      workflows: icp.workflows.join(', '),
       buyerRoles: icp.buyerRoles.join(', '),
     });
     setIsEditing(false);
   };
 
-  const handleInputChange = (field: 'industries' | 'pains' | 'buyerRoles', value: string) => {
+  const handleInputChange = (field: 'industries' | 'workflows' | 'buyerRoles', value: string) => {
     setInputValues({
       ...inputValues,
       [field]: value,
@@ -172,25 +172,25 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
               )}
             </div>
 
-            {/* Pain Points */}
+            {/* Workflows */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Key Pain Points
+                Key Workflows
               </label>
               {isEditing ? (
                 <textarea
-                  value={inputValues.pains}
-                  onChange={(e) => handleInputChange('pains', e.target.value)}
-                  placeholder="e.g., Manual processes, High costs, Lack of visibility"
+                  value={inputValues.workflows}
+                  onChange={(e) => handleInputChange('workflows', e.target.value)}
+                  placeholder="e.g., Data collection, Report generation, Client communication"
                   className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   rows={3}
                 />
               ) : (
                 <div className="space-y-2">
-                  {editedICP.pains.map((pain, idx) => (
+                  {editedICP.workflows.map((workflow, idx) => (
                     <div key={idx} className="flex items-start space-x-2">
                       <span className="text-blue-600 mt-1">•</span>
-                      <span className="text-gray-700">{pain}</span>
+                      <span className="text-gray-700">{workflow}</span>
                     </div>
                   ))}
                 </div>

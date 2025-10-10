@@ -12,8 +12,9 @@ const RegenerateRequestSchema = z.object({
   companyName: z.string().min(1),
   companyDomain: z.string().min(1),
   icp: z.object({
+    solution: z.string(),
+    workflows: z.array(z.string()),
     industries: z.array(z.string()),
-    pains: z.array(z.string()),
     buyerRoles: z.array(z.string()),
     firmographics: z.object({
       size: z.string(),
@@ -86,8 +87,9 @@ async function analyzeCompany(
 }> {
   const ANALYSIS_PROMPT = `You are analyzing "${companyName}" (${companyDomain}) to determine if they match this Ideal Customer Profile (ICP):
 
+**Solution Provided:** ${icp.solution}
+**Key Workflows:** ${icp.workflows.join(', ')}
 **Target Industries:** ${icp.industries.join(', ')}
-**Key Pain Points:** ${icp.pains.join(', ')}
 **Target Buyer Roles:** ${icp.buyerRoles.join(', ')}
 **Company Size:** ${icp.firmographics.size}
 **Geography:** ${icp.firmographics.geo}
@@ -124,7 +126,7 @@ Be objective and evidence-based.`;
     return {
       icpScore: 75,
       confidence: 70,
-      rationale: `Mock analysis for ${companyName}. This company appears to be in the ${icp.industries[0]} industry and may experience challenges with ${icp.pains[0]}. Further research recommended.`,
+      rationale: `Mock analysis for ${companyName}. This company appears to be in the ${icp.industries[0]} industry and may use workflows related to ${icp.workflows[0]}. Further research recommended.`,
       evidence: [
         {
           url: `https://${companyDomain}`,

@@ -13,8 +13,9 @@ const CompetitorsRequestSchema = z.object({
   companyName: z.string().min(1),
   companyDomain: z.string().min(1),
   icp: z.object({
+    solution: z.string(),
+    workflows: z.array(z.string()),
     industries: z.array(z.string()),
-    pains: z.array(z.string()),
     buyerRoles: z.array(z.string()),
     firmographics: z.object({
       size: z.string(),
