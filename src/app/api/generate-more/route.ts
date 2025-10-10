@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
+import { db, companies as companiesTable } from '@/lib/db';
 import type { Company } from '@/types';
 
 const GenerateMoreRequestSchema = z.object({
@@ -163,26 +164,32 @@ async function generateMoreHandler(request: NextRequest) {
         
         // Only include if ICP score is above threshold (50+)
         if (analysis.icpScore >= 50) {
-          const prospect: Company = {
-            id: Date.now() + Math.floor(Math.random() * 1000000) + processedCount, // Unique ID
-            name: candidate.name,
-            domain: candidate.domain,
-            source: 'expanded' as const,
-            sourceCustomerDomain: null,
-            icpScore: analysis.icpScore,
-            confidence: analysis.confidence,
-            status: 'New' as const,
-            rationale: analysis.rationale,
-            evidence: analysis.evidence,
-            decisionMakers: null,
-            quality: null,
-            notes: null,
-            tags: null,
-            relatedCompanyIds: null,
-          };
-          
-          newProspects.push(prospect);
-          console.log(`✓ Added ${candidate.name} (ICP Score: ${analysis.icpScore})`);
+          try {
+            // Insert to database
+            const insertedProspect = await db.insert(companiesTable).values({
+              userId: 'demo-user', // TODO: Get from auth context
+              name: candidate.name,
+              domain: candidate.domain,
+              source: 'expanded',
+              sourceCustomerDomain: null,
+              icpScore: analysis.icpScore,
+              confidence: analysis.confidence,
+              status: 'New',
+              rationale: analysis.rationale,
+              evidence: analysis.evidence,
+            }).returning();
+            
+            newProspects.push(insertedProspect[0]);
+            console.log(`✓ Added ${candidate.name} (ICP Score: ${analysis.icpScore})`);
+          } catch (dbError) {
+            const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
+            // Skip if duplicate domain
+            if (errorMessage.includes('duplicate key') || errorMessage.includes('companies_domain_unique')) {
+              console.log(`⏭️ ${candidate.domain} already exists, skipping...`);
+            } else {
+              console.error(`Failed to insert ${candidate.name}:`, errorMessage);
+            }
+          }
         } else {
           console.log(`✗ Skipped ${candidate.name} (ICP Score: ${analysis.icpScore} too low)`);
         }

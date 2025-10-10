@@ -35,75 +35,65 @@ export default function HomePage() {
 
   const loadExistingData = async () => {
     try {
-      // In a real app, you'd have an API to fetch existing data
-      // For now, we'll just check if there's any data in localStorage
-      const savedData = localStorage.getItem('gtm-data');
-      if (savedData) {
-        const { prospects: savedProspects, clusters: savedClusters, ads: savedAds } = JSON.parse(savedData);
+      // Fetch prospects from database
+      const response = await fetch('/api/prospects');
+      if (!response.ok) {
+        console.error('Failed to fetch prospects from database');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.prospects && data.prospects.length > 0) {
+        setProspects(data.prospects);
+        setHasData(true);
+        console.log(`Loaded ${data.prospects.length} prospects from database`);
         
-        // Validate that ads have the required structure
-        const validAds = savedAds?.every((ad: Ad) => ad.lines && Array.isArray(ad.lines));
-        
-        if (savedProspects?.length > 0 && validAds) {
-          // Fix duplicate IDs (migration for old data)
-          const seenIds = new Set<number>();
-          const fixedProspects = savedProspects.map((prospect: Company) => {
-            if (seenIds.has(prospect.id)) {
-              // Duplicate ID detected, generate a new unique one
-              const newId = Date.now() + Math.floor(Math.random() * 1000000);
-              console.log(`Fixed duplicate ID ${prospect.id} for ${prospect.name} → ${newId}`);
-              return { ...prospect, id: newId };
-            }
-            seenIds.add(prospect.id);
-            return prospect;
-          });
-          
-          // Save fixed data back to localStorage
-          if (fixedProspects.length !== savedProspects.length || 
-              fixedProspects.some((p: Company, i: number) => p.id !== savedProspects[i].id)) {
-            localStorage.setItem('gtm-data', JSON.stringify({
-              prospects: fixedProspects,
-              clusters: savedClusters,
-              ads: savedAds,
-            }));
-            console.log('Migrated prospects with duplicate IDs');
-          }
-          
-          setProspects(fixedProspects);
-          setClusters(savedClusters || []);
-          setAds(savedAds || []);
-          setHasData(true);
-        } else if (savedProspects?.length > 0 && !validAds) {
-          // Clear invalid old data
-          console.log('Clearing old data with invalid structure');
-          localStorage.removeItem('gtm-data');
+        // TODO: Load clusters and ads from database as well
+        // For now, keep backward compatibility with localStorage for clusters/ads
+        const savedData = localStorage.getItem('gtm-data');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          if (parsed.clusters) setClusters(parsed.clusters);
+          if (parsed.ads) setAds(parsed.ads);
         }
       }
     } catch (error) {
       console.error('Error loading existing data:', error);
-      localStorage.removeItem('gtm-data');
     }
   };
 
-  const restoreAnalysisState = () => {
+  const restoreAnalysisState = async () => {
     try {
-      const savedStep = localStorage.getItem('gtm-analysis-step');
-      const savedICP = localStorage.getItem('gtm-icp');
-      const savedWebsiteUrl = localStorage.getItem('gtm-website-url');
+      // Fetch session from database
+      const response = await fetch('/api/session');
+      if (!response.ok) {
+        console.log('No previous session found');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.session) {
+        const session = data.session;
+        
+        if (session.analysisStep && session.analysisStep !== 'input') {
+          setAnalysisStep(session.analysisStep as 'input' | 'icp-review' | 'results');
+        }
+        
+        if (session.icp) {
+          setExtractedICP(session.icp);
+        }
+        
+        if (session.websiteUrl) {
+          setWebsiteUrl(session.websiteUrl);
+        }
+        
+        console.log('Restored session from database');
+      }
+      
+      // Keep localStorage fallback for customers (not yet in session table)
       const savedCustomers = localStorage.getItem('gtm-customers');
-      
-      if (savedStep && savedStep !== 'input') {
-        setAnalysisStep(savedStep as 'input' | 'icp-review' | 'results');
-      }
-      
-      if (savedICP) {
-        setExtractedICP(JSON.parse(savedICP));
-      }
-      
-      if (savedWebsiteUrl) {
-        setWebsiteUrl(savedWebsiteUrl);
-      }
-      
       if (savedCustomers) {
         setCustomers(JSON.parse(savedCustomers));
       }
@@ -138,11 +128,24 @@ export default function HomePage() {
       setExtractedICP(data.icp);
       setAnalysisStep('icp-review');
 
-      // Save ICP and analysis state to localStorage
-      localStorage.setItem('gtm-icp', JSON.stringify(data.icp));
-      localStorage.setItem('gtm-website-url', url);
+      // Save session to database
+      try {
+        await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            websiteUrl: url,
+            icp: data.icp,
+            analysisStep: 'icp-review',
+          }),
+        });
+        console.log('Session saved to database');
+      } catch (error) {
+        console.error('Failed to save session:', error);
+      }
+
+      // Keep localStorage for backward compatibility (customers not yet in DB)
       localStorage.setItem('gtm-customers', JSON.stringify(customerList));
-      localStorage.setItem('gtm-analysis-step', 'icp-review');
 
       // Show info message if using mock data
       if (data.mockData) {
@@ -230,14 +233,28 @@ export default function HomePage() {
       setHasData(true);
       setAnalysisStep('results');
 
-      // Save to localStorage for persistence
+      // Save session to database
+      try {
+        await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            websiteUrl,
+            icp: confirmedICP,
+            analysisStep: 'results',
+          }),
+        });
+        console.log('Session saved to database');
+      } catch (error) {
+        console.error('Failed to save session:', error);
+      }
+
+      // Keep localStorage for backward compatibility (clusters/ads not yet in DB)
       localStorage.setItem('gtm-data', JSON.stringify({
         prospects: finalResult.prospects,
         clusters: finalResult.clusters,
         ads: finalResult.ads,
       }));
-      localStorage.setItem('gtm-icp', JSON.stringify(confirmedICP));
-      localStorage.setItem('gtm-analysis-step', 'results');
 
       // Hide progress panel after completion
       setTimeout(() => {
