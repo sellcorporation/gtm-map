@@ -79,6 +79,29 @@ async function generateMoreHandler(request: NextRequest) {
     // Search for new companies
     const searchResults = await searchCompanies(searchQuery);
     
+    // Helper function to validate if a name is a real company name
+    const isValidCompanyName = (name: string): boolean => {
+      const lowerName = name.toLowerCase();
+      
+      // Filter out article titles and aggregator listings
+      const badPatterns = [
+        /^\d+\s+(types|ways|best|top|great)/i, // "11 Types of...", "Top 10..."
+        /^(best|top)\s+\d+/i, // "Best 10...", "Top 5..."
+        /surveyors?\s+in\s+/i, // "Surveyors in New York"
+        /\sin\s+\w+,?\s+\w+$/i, // Ends with "in Location, State"
+        /^the\s+best/i, // "THE BEST..."
+        /(directory|list|guide|review)/i, // Directory/list indicators
+      ];
+      
+      for (const pattern of badPatterns) {
+        if (pattern.test(name)) {
+          return false;
+        }
+      }
+      
+      return true;
+    };
+
     // Extract domains from URLs and filter out duplicates
     const candidates = searchResults
       .map(result => {
@@ -87,8 +110,20 @@ async function generateMoreHandler(request: NextRequest) {
           const urlObj = new URL(result.url);
           const domain = urlObj.hostname.replace('www.', '');
           
+          // Filter out aggregator domains
+          const aggregatorDomains = ['clutch.co', 'yelp.com', 'ricsfirms.com', 'trustpilot.com', 'linkedin.com', 'facebook.com', 'instagram.com'];
+          if (aggregatorDomains.some(agg => domain.includes(agg))) {
+            return null;
+          }
+          
           // Extract company name from title (take first part before separator)
-          const name = result.title.split(/[-|–—]/)[0].trim();
+          let name = result.title.split(/[-|–—]/)[0].trim();
+          
+          // Validate the company name
+          if (!isValidCompanyName(name)) {
+            console.log(`⚠️ Filtered out invalid name: "${name}"`);
+            return null;
+          }
           
           return { name, domain, url: result.url };
         } catch (error) {
@@ -129,7 +164,7 @@ async function generateMoreHandler(request: NextRequest) {
         // Only include if ICP score is above threshold (50+)
         if (analysis.icpScore >= 50) {
           const prospect: Company = {
-            id: Date.now() + processedCount, // Temporary ID
+            id: Date.now() + Math.floor(Math.random() * 1000000) + processedCount, // Unique ID
             name: candidate.name,
             domain: candidate.domain,
             source: 'expanded' as const,
