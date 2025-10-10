@@ -24,6 +24,8 @@ export default function HomePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showICPModal, setShowICPModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<string[]>([]);
+  const [showAnalysisProgress, setShowAnalysisProgress] = useState(false);
 
   // Load existing data on mount
   useEffect(() => {
@@ -141,6 +143,8 @@ export default function HomePage() {
 
   const handleConfirmICP = async (confirmedICP: ICP) => {
     setIsLoading(true);
+    setAnalysisProgress([]);
+    setShowAnalysisProgress(true);
     
     try {
       // Read batch size from localStorage
@@ -160,38 +164,75 @@ export default function HomePage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      // Handle SSE stream
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalResult = null;
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.message) {
+              setAnalysisProgress(prev => [...prev, data.message]);
+            } else if (data.result) {
+              finalResult = data.result;
+            } else if (data.error) {
+              throw new Error(data.error);
+            }
+          }
+        }
+      }
+
+      if (!finalResult) {
+        throw new Error('No result received from analysis');
+      }
       
-      setProspects(data.prospects || []);
-      setClusters(data.clusters || []);
-      setAds(data.ads || []);
+      setProspects(finalResult.prospects || []);
+      setClusters(finalResult.clusters || []);
+      setAds(finalResult.ads || []);
       setHasData(true);
       setAnalysisStep('results');
 
       // Save to localStorage for persistence
       localStorage.setItem('gtm-data', JSON.stringify({
-        prospects: data.prospects,
-        clusters: data.clusters,
-        ads: data.ads,
+        prospects: finalResult.prospects,
+        clusters: finalResult.clusters,
+        ads: finalResult.ads,
       }));
       localStorage.setItem('gtm-icp', JSON.stringify(confirmedICP));
       localStorage.setItem('gtm-analysis-step', 'results');
 
+      // Hide progress panel after completion
+      setTimeout(() => {
+        setShowAnalysisProgress(false);
+        setAnalysisProgress([]);
+      }, 1000);
+
       // Show info message if using mock data
-      if (data.mockData) {
+      if (finalResult.mockData) {
         toast.info('Using demo data - OpenAI quota exceeded. Add credits to your OpenAI account for real AI analysis.');
       } else {
-        toast.success(`Analysis complete! Found ${data.prospects?.length || 0} prospects.`);
+        toast.success(`Analysis complete! Found ${finalResult.prospects?.length || 0} prospects.`);
       }
       
     } catch (error) {
       console.error('Analysis error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Analysis failed';
       toast.error(errorMessage);
+      setShowAnalysisProgress(false);
     } finally {
       setIsLoading(false);
     }
@@ -554,6 +595,34 @@ export default function HomePage() {
         isOpen={showSettings} 
         onClose={() => setShowSettings(false)} 
       />
+
+      {/* Analysis Progress Panel */}
+      {showAnalysisProgress && (
+        <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-white shadow-2xl border-l border-gray-200 z-50 overflow-hidden flex flex-col">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <h3 className="font-semibold">AI Analysis in Progress</h3>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+            {analysisProgress.map((message, index) => (
+              <div
+                key={index}
+                className="text-sm text-gray-700 bg-white p-2 rounded shadow-sm animate-fade-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                {message}
+              </div>
+            ))}
+            {analysisProgress.length === 0 && (
+              <div className="text-sm text-gray-500 text-center py-8">
+                Initializing analysis...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

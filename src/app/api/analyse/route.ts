@@ -228,12 +228,21 @@ async function createClusters(prospects: Company[], icp: ICP) {
 }
 
 async function analyseHandler(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { websiteUrl, customers, icp: providedICP, batchSize } = AnalyseRequestSchema.parse(body);
-    
-    // Use provided batch size or default to 10
-    const maxProspects = batchSize || 10;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendMessage = (message: string) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
+      };
+
+      try {
+        const body = await request.json();
+        const { websiteUrl, customers, icp: providedICP, batchSize } = AnalyseRequestSchema.parse(body);
+        
+        // Use provided batch size or default to 10
+        const maxProspects = batchSize || 10;
+        
+        sendMessage(`🎯 Starting analysis for ${customers.length} customer(s), generating up to ${maxProspects} prospects...`);
     
     let icp: ICP;
     let icpIsMock = false;
@@ -251,41 +260,47 @@ async function analyseHandler(request: NextRequest) {
       icpIsMock = extraction.isMock;
     }
     
-    // Process each customer
-    const allCompetitors: Competitor[] = [];
-    let competitorsIsMock = false;
-    
-    for (const customer of customers) {
-      // Check if we've reached the limit
-      if (allCompetitors.length >= maxProspects) {
-        break;
-      }
+        // Process each customer
+        const allCompetitors: Competitor[] = [];
+        let competitorsIsMock = false;
+        
+        sendMessage(`\n📊 Analyzing ${customers.length} customer company(ies)...`);
+        
+        for (const customer of customers) {
+          // Check if we've reached the limit
+          if (allCompetitors.length >= maxProspects) {
+            break;
+          }
+          
+          sendMessage(`🔍 Searching for competitors of ${customer.name}...`);
+          
+          // Search for competitors
+          const searchResults = await searchCompetitors(customer.domain, icp.industries[0] || '');
       
-      // Search for competitors
-      const searchResults = await searchCompetitors(customer.domain, icp.industries[0] || '');
-      
-      // Find competitors using AI
-      const { competitors, isMock: isMock } = await findCompetitors(
-        customer.domain,
-        customer.name,
-        icp,
-        searchResults
-      );
-      
-      if (isMock) {
-        competitorsIsMock = true;
-      }
-      
-      // Add source customer info
-      competitors.forEach(competitor => {
-        competitor.evidenceUrls = competitor.evidenceUrls.slice(0, 3); // Limit to 3 URLs
-      });
-      
-      // Only add up to the remaining slots
-      const remainingSlots = maxProspects - allCompetitors.length;
-      const competitorsToAdd = competitors.slice(0, remainingSlots);
-      allCompetitors.push(...competitorsToAdd);
-    }
+          // Find competitors using AI
+          const { competitors, isMock: isMock } = await findCompetitors(
+            customer.domain,
+            customer.name,
+            icp,
+            searchResults
+          );
+          
+          sendMessage(`✅ Found ${competitors.length} potential competitors for ${customer.name}`);
+          
+          if (isMock) {
+            competitorsIsMock = true;
+          }
+          
+          // Add source customer info
+          competitors.forEach(competitor => {
+            competitor.evidenceUrls = competitor.evidenceUrls.slice(0, 3); // Limit to 3 URLs
+          });
+          
+          // Only add up to the remaining slots
+          const remainingSlots = maxProspects - allCompetitors.length;
+          const competitorsToAdd = competitors.slice(0, remainingSlots);
+          allCompetitors.push(...competitorsToAdd);
+        }
     
     // Dedupe by domain
     const uniqueCompetitors = allCompetitors.reduce((acc, competitor) => {
@@ -300,34 +315,42 @@ async function analyseHandler(request: NextRequest) {
       return acc;
     }, [] as Competitor[]);
     
-    // Analyze each competitor with AI-powered workflow scoring
-    const prospectRecords = [];
-    const processedDomains = new Set<string>();
-    
-    for (const competitor of uniqueCompetitors) {
-      // Skip if we've already processed this domain (handles duplicates from multiple sources)
-      const normalizedDomain = competitor.domain.toLowerCase();
-      if (processedDomains.has(normalizedDomain)) {
-        console.log(`Skipping duplicate domain: ${competitor.domain}`);
-        continue;
-      }
-      processedDomains.add(normalizedDomain);
-      
-      try {
-        console.log(`Analyzing ${competitor.domain} with AI workflow scoring...`);
+        // Analyze each competitor with AI-powered workflow scoring
+        sendMessage(`\n🤖 AI Analysis Phase: Analyzing ${uniqueCompetitors.length} unique prospects...`);
         
-        // Fetch website content for proper analysis
-        const websiteContent = await fetchWebsite(competitor.domain);
+        const prospectRecords = [];
+        const processedDomains = new Set<string>();
+        let analyzedCount = 0;
         
-        // Use AI-powered workflow-based analysis
-        const analysis = await analyzeWebsiteAgainstICP(
-          websiteContent,
-          competitor.name,
-          competitor.domain,
-          icp
-        );
-        
-        console.log(`${competitor.name}: ICP Score ${analysis.icpScore}, Confidence ${analysis.confidence}`);
+        for (const competitor of uniqueCompetitors) {
+          // Skip if we've already processed this domain (handles duplicates from multiple sources)
+          const normalizedDomain = competitor.domain.toLowerCase();
+          if (processedDomains.has(normalizedDomain)) {
+            sendMessage(`⏭️ Skipping duplicate: ${competitor.domain}`);
+            continue;
+          }
+          processedDomains.add(normalizedDomain);
+          
+          analyzedCount++;
+          sendMessage(`\n[${analyzedCount}/${uniqueCompetitors.length}] 🔎 Analyzing ${competitor.name}...`);
+          
+          try {
+            sendMessage(`📡 Fetching website content from ${competitor.domain}...`);
+            
+            // Fetch website content for proper analysis
+            const websiteContent = await fetchWebsite(competitor.domain);
+            
+            sendMessage(`🧠 AI analyzing workflow fit for ${competitor.name}...`);
+            
+            // Use AI-powered workflow-based analysis
+            const analysis = await analyzeWebsiteAgainstICP(
+              websiteContent,
+              competitor.name,
+              competitor.domain,
+              icp
+            );
+            
+            sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}%`);
         
         const prospect = await db.insert(companies).values({
           name: competitor.name,
@@ -341,78 +364,92 @@ async function analyseHandler(request: NextRequest) {
           evidence: analysis.evidence,
         }).returning();
         
-        prospectRecords.push(prospect[0]);
+            prospectRecords.push(prospect[0]);
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            sendMessage(`⚠️ Failed to analyze ${competitor.name}: ${errorMessage}`);
+            
+            // Only use fallback if it's NOT a duplicate key error
+            if (errorMessage.includes('duplicate key') || errorMessage.includes('companies_domain_unique')) {
+              sendMessage(`⏭️ ${competitor.domain} already exists in database, skipping...`);
+              continue;
+            }
+        
+            // Fall back to simple scoring if AI analysis fails
+            try {
+              sendMessage(`🔄 Using fallback scoring for ${competitor.name}...`);
+              const icpScore = await computeICPScore(competitor, icp);
+              const evidence: Evidence[] = competitor.evidenceUrls.map(url => ({
+                url,
+                snippet: `Evidence for ${competitor.name} as competitor`,
+              }));
+              
+              const prospect = await db.insert(companies).values({
+                name: competitor.name,
+                domain: competitor.domain,
+                source: 'expanded',
+                sourceCustomerDomain: customers[0]?.domain,
+                icpScore,
+                confidence: competitor.confidence,
+                status: 'New',
+                rationale: competitor.rationale,
+                evidence,
+              }).returning();
+              
+              prospectRecords.push(prospect[0]);
+              sendMessage(`✅ ${competitor.name}: Fallback ICP Score ${icpScore}/100`);
+            } catch (fallbackError) {
+              sendMessage(`❌ Failed to insert ${competitor.name}, skipping...`);
+              // Skip this prospect entirely
+              continue;
+            }
+          }
+        }
+    
+        // Create clusters and ads
+        sendMessage(`\n📊 Creating clusters and generating ad copy...`);
+        const { clusters: clusterRecords, ads: adRecords } = await createClusters(prospectRecords, icp);
+        sendMessage(`✅ Created ${clusterRecords.length} cluster(s) with ${adRecords.length} ad(s)`);
+        
+        // Check if we used mock data
+        const usedMockData = icpIsMock || competitorsIsMock;
+
+        sendMessage(`\n🎉 Analysis complete! Found ${prospectRecords.length} prospects.`);
+
+        // Send final result
+        const result = {
+          prospects: prospectRecords,
+          clusters: clusterRecords,
+          ads: adRecords,
+          icp,
+          mockData: usedMockData,
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ result })}\n\n`));
+        controller.close();
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`Failed to analyze ${competitor.name}:`, errorMessage);
+        console.error('Analysis error:', error);
         
-        // Only use fallback if it's NOT a duplicate key error
-        if (errorMessage.includes('duplicate key') || errorMessage.includes('companies_domain_unique')) {
-          console.log(`Domain ${competitor.domain} already exists in database, skipping...`);
-          continue;
+        let errorMessage = 'Analysis failed';
+        if (error instanceof z.ZodError) {
+          errorMessage = error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
         }
         
-        // Fall back to simple scoring if AI analysis fails
-        try {
-          const icpScore = await computeICPScore(competitor, icp);
-          const evidence: Evidence[] = competitor.evidenceUrls.map(url => ({
-            url,
-            snippet: `Evidence for ${competitor.name} as competitor`,
-          }));
-          
-          const prospect = await db.insert(companies).values({
-            name: competitor.name,
-            domain: competitor.domain,
-            source: 'expanded',
-            sourceCustomerDomain: customers[0]?.domain,
-            icpScore,
-            confidence: competitor.confidence,
-            status: 'New',
-            rationale: competitor.rationale,
-            evidence,
-          }).returning();
-          
-          prospectRecords.push(prospect[0]);
-          console.log(`${competitor.name}: Fallback scoring - ICP Score ${icpScore}`);
-        } catch (fallbackError) {
-          console.error(`Failed to insert ${competitor.name} even with fallback:`, fallbackError);
-          // Skip this prospect entirely
-          continue;
-        }
+        sendMessage(`\n❌ Error: ${errorMessage}`);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMessage })}\n\n`));
+        controller.close();
       }
     }
-    
-    // Create clusters and ads
-    const { clusters: clusterRecords, ads: adRecords } = await createClusters(prospectRecords, icp);
-    
-    // Check if we used mock data
-    const usedMockData = icpIsMock || competitorsIsMock;
+  });
 
-    return NextResponse.json({
-      prospects: prospectRecords,
-      clusters: clusterRecords,
-      ads: adRecords,
-      icp,
-      mockData: usedMockData,
-    });
-    
-  } catch (error) {
-    console.error('Analysis error:', error);
-    
-    if (error instanceof z.ZodError) {
-      const errorMessage = error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-      console.error('Validation errors:', error.issues);
-      return NextResponse.json(
-        { error: `Invalid input: ${errorMessage}`, details: error.issues },
-        { status: 400 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Analysis failed' },
-      { status: 500 }
-    );
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }
 
 export const POST = requireAuth(analyseHandler);
