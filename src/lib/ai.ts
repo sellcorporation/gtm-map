@@ -410,15 +410,27 @@ CONFIDENCE RULES (STRICTLY ENFORCE):
 Provide:
 1. Rationale (workflow-focused - explain if they DO these activities, not if they sell the same solution)
 2. Confidence score (MUST follow rules above based on evidence count)
-3. 2-5 evidence snippets from the website
+3. 2-5 evidence items, each with:
+   - A DIFFERENT source URL (different pages from their site: /about, /services, /contact, OR external sources)
+   - A specific text snippet proving they perform the workflow
+   - IMPORTANT: Each evidence item must have a UNIQUE URL - don't use the homepage multiple times
 4. Final ICP score (0-100, workflow-weighted)
+
+EVIDENCE DIVERSITY:
+- Use different pages from their website (e.g., https://company.com/services, https://company.com/about)
+- If their website has multiple pages about their work, cite each one separately
+- Each URL should be unique - NO duplicates allowed
+- This ensures true evidence diversity
 
 Be honest - if the workflow match is poor, give a low score even if industry matches.`;
 
     const ExtendedAnalysisSchema = z.object({
       rationale: z.string().describe('Why they match (workflow-focused)'),
       confidence: z.number().min(0).max(100).describe('Confidence (based on evidence count)'),
-      evidenceSnippets: z.array(z.string()).min(2).max(5).describe('2-5 evidence snippets'),
+      evidence: z.array(z.object({
+        url: z.string().describe('Specific URL where evidence was found (must be unique)'),
+        snippet: z.string().describe('Text snippet proving they perform the workflow'),
+      })).min(2).max(5).describe('2-5 evidence items with DIFFERENT URLs'),
       icpScore: z.number().min(0).max(100).describe('ICP score (workflow-weighted)'),
     });
 
@@ -429,11 +441,26 @@ Be honest - if the workflow match is poor, give a low score even if industry mat
       temperature: 0.3,
     });
 
-    // Convert evidence snippets to proper format
-    const evidence = object.evidenceSnippets.map(snippet => ({
-      url: `https://${companyDomain}`,
-      snippet,
-    }));
+    // Validate evidence URLs are unique
+    const uniqueUrls = new Set<string>();
+    const validEvidence = [];
+    
+    for (const item of object.evidence) {
+      const normalizedUrl = item.url.toLowerCase().trim();
+      if (!uniqueUrls.has(normalizedUrl)) {
+        uniqueUrls.add(normalizedUrl);
+        validEvidence.push(item);
+      } else {
+        console.warn(`Duplicate evidence URL detected and removed: ${item.url}`);
+      }
+    }
+    
+    // If we filtered out duplicates, log it
+    if (validEvidence.length < object.evidence.length) {
+      console.warn(`Removed ${object.evidence.length - validEvidence.length} duplicate evidence URLs for ${companyName}`);
+    }
+    
+    const evidence = validEvidence;
 
     // Enforce confidence rules based on evidence count
     let adjustedConfidence = object.confidence;

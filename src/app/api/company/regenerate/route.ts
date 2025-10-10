@@ -120,7 +120,15 @@ Analyze how well this company matches the ICP. Provide:
 1. **ICP Score (0-100):** How well they match (workflow-weighted)
 2. **Confidence (0-100):** Based on evidence strength (3+ sources = 75-90, 2 sources = 60-70, 1 = ≤55)
 3. **Rationale:** Explain if they DO these workflows (not if they sell the same solution)
-4. **Evidence:** URLs and snippets proving they perform these activities
+4. **Evidence:** 2-5 items, each with:
+   - A DIFFERENT source URL (different pages: /about, /services, /contact)
+   - A specific text snippet proving they perform the workflow
+   - IMPORTANT: Each evidence item must have a UNIQUE URL - don't use the same page multiple times
+
+EVIDENCE DIVERSITY:
+- Use different pages from their website (e.g., https://company.com/services, https://company.com/about)
+- Each URL should be unique - NO duplicates allowed
+- This ensures true evidence diversity
 
 Be objective and evidence-based.`;
 
@@ -132,11 +140,30 @@ Be objective and evidence-based.`;
       temperature: 0.3,
     });
 
+    // Validate evidence URLs are unique
+    const uniqueUrls = new Set<string>();
+    const validEvidence = [];
+    
+    for (const item of object.evidence) {
+      const normalizedUrl = item.url.toLowerCase().trim();
+      if (!uniqueUrls.has(normalizedUrl)) {
+        uniqueUrls.add(normalizedUrl);
+        validEvidence.push(item);
+      } else {
+        console.warn(`Duplicate evidence URL detected and removed: ${item.url}`);
+      }
+    }
+    
+    // If we filtered out duplicates, log it
+    if (validEvidence.length < object.evidence.length) {
+      console.warn(`Removed ${object.evidence.length - validEvidence.length} duplicate evidence URLs for ${companyName}`);
+    }
+
     return {
       icpScore: object.icpScore,
       confidence: object.confidence,
       rationale: object.rationale,
-      evidence: object.evidence,
+      evidence: validEvidence,
     };
   } catch (error) {
     console.error('Error analyzing company:', error);
