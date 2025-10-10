@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import InputsPanel from '@/components/InputsPanel';
 import ICPReviewPanel from '@/components/ICPReviewPanel';
 import ICPProfileModal from '@/components/ICPProfileModal';
+import SettingsModal from '@/components/SettingsModal';
 import MarketMapPanel from '@/components/MarketMapPanel';
 import type { Company, Cluster, Ad, Customer, ICP } from '@/types';
 
@@ -22,6 +23,7 @@ export default function HomePage() {
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showICPModal, setShowICPModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Load existing data on mount
   useEffect(() => {
@@ -141,6 +143,9 @@ export default function HomePage() {
     setIsLoading(true);
     
     try {
+      // Read batch size from localStorage
+      const batchSize = parseInt(localStorage.getItem('gtm-batch-size') || '10');
+      
       const response = await fetch('/api/analyse', {
         method: 'POST',
         headers: {
@@ -150,6 +155,7 @@ export default function HomePage() {
           websiteUrl,
           customers,
           icp: confirmedICP,
+          batchSize,
         }),
       });
 
@@ -377,6 +383,14 @@ export default function HomePage() {
                 <span className="sm:hidden">ICP</span>
               </button>
             )}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center text-sm sm:text-base"
+            >
+              <Settings className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Settings</span>
+              <span className="sm:hidden">Settings</span>
+            </button>
             {(hasData || analysisStep === 'results') && (
               <button
                 onClick={handleBackToInput}
@@ -513,6 +527,12 @@ export default function HomePage() {
         onClose={() => setShowICPModal(false)}
         icp={extractedICP}
         onUpdate={handleICPUpdate}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
       />
     </div>
   );

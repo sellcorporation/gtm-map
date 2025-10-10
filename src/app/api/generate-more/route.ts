@@ -7,9 +7,11 @@ import type { Company } from '@/types';
 
 const GenerateMoreRequestSchema = z.object({
   batchSize: z.number().int().min(1).max(100), // Limit to 100 per request
+  maxTotalProspects: z.number().int().min(10).max(500).optional(), // Optional max total limit
   icp: z.object({
+    solution: z.string(),
+    workflows: z.array(z.string()),
     industries: z.array(z.string()),
-    pains: z.array(z.string()),
     buyerRoles: z.array(z.string()),
     firmographics: z.object({
       size: z.string(),
@@ -29,9 +31,24 @@ const GenerateMoreRequestSchema = z.object({
 async function generateMoreHandler(request: NextRequest) {
   try {
     const body = await request.json();
-    const { batchSize, icp, existingProspects } = GenerateMoreRequestSchema.parse(body);
+    const { batchSize, maxTotalProspects, icp, existingProspects } = GenerateMoreRequestSchema.parse(body);
     
-    console.log(`Generating ${batchSize} more prospects based on ICP and ${existingProspects.length} existing prospects...`);
+    const maxTotal = maxTotalProspects || 100; // Default to 100 if not specified
+    const currentCount = existingProspects.length;
+    
+    // Check if we've hit the max total limit
+    if (currentCount >= maxTotal) {
+      return NextResponse.json({
+        prospects: [],
+        message: `Maximum limit of ${maxTotal} prospects reached. Adjust in settings to generate more.`,
+        reachedLimit: true,
+      });
+    }
+    
+    // Adjust batch size to not exceed max total
+    const actualBatchSize = Math.min(batchSize, maxTotal - currentCount);
+    
+    console.log(`Generating ${actualBatchSize} more prospects (current: ${currentCount}, max: ${maxTotal})...`);
     
     // Filter out existing domains to avoid duplicates
     const existingDomains = new Set(existingProspects.map(p => p.domain.toLowerCase()));
@@ -53,7 +70,8 @@ async function generateMoreHandler(request: NextRequest) {
       searchQuery = `companies similar to ${goodProspects.slice(0, 3).map(p => p.name).join(', ')} in ${icp.industries.join(' or ')}`;
     } else {
       // Fall back to ICP-based search
-      searchQuery = `${icp.industries[0]} companies ${icp.firmographics.geo} ${icp.pains[0]}`;
+      const workflows = icp.workflows || [];
+      searchQuery = `${icp.industries[0]} companies ${icp.firmographics.geo} ${workflows[0] || ''}`;
     }
     
     console.log(`Search query: ${searchQuery}`);
@@ -81,7 +99,7 @@ async function generateMoreHandler(request: NextRequest) {
       .filter((candidate): candidate is { name: string; domain: string; url: string } => 
         candidate !== null && !existingDomains.has(candidate.domain.toLowerCase())
       )
-      .slice(0, Math.min(batchSize * 2, 50)); // Get more candidates than needed
+      .slice(0, Math.min(actualBatchSize * 2, 50)); // Get more candidates than needed
     
     console.log(`Found ${candidates.length} unique candidate domains`);
     
@@ -99,7 +117,7 @@ async function generateMoreHandler(request: NextRequest) {
     let processedCount = 0;
     
     for (const candidate of candidates) {
-      if (newProspects.length >= batchSize) break;
+      if (newProspects.length >= actualBatchSize) break;
       
       try {
         console.log(`Analyzing ${candidate.domain}...`);

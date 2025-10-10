@@ -33,7 +33,7 @@ export default function ICPReviewPanel({
     }));
   };
 
-  const handleArrayFieldChange = (field: 'industries' | 'pains' | 'buyerRoles', value: string) => {
+  const handleArrayFieldChange = (field: 'industries' | 'workflows' | 'buyerRoles', value: string) => {
     const array = value.split(',').map(item => item.trim()).filter(item => item.length > 0);
     handleFieldChange(field, array);
   };
@@ -71,7 +71,7 @@ export default function ICPReviewPanel({
               type="text"
               value={editedICP.industries.join(', ')}
               onChange={(e) => handleArrayFieldChange('industries', e.target.value)}
-              placeholder="e.g., SaaS, FinTech, Healthcare"
+              placeholder="e.g., Property Surveying, Building Inspection"
               className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
@@ -92,32 +92,58 @@ export default function ICPReviewPanel({
           )}
         </div>
 
-        {/* Pain Points */}
+        {/* Solution */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Pain Points
+            Your Solution
+          </label>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editedICP.solution || ''}
+              onChange={(e) => handleFieldChange('solution', e.target.value)}
+              placeholder="e.g., Digital inspection and reporting software"
+              className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              disabled={isLoading}
+            />
+          ) : (
+            <div className="px-3 py-2 bg-green-50 rounded-md">
+              <p className="text-sm text-gray-900 font-medium">{editedICP.solution || 'Not specified'}</p>
+            </div>
+          )}
+          {isEditing && (
+            <p className="text-xs text-gray-500 mt-1">One sentence describing what you provide</p>
+          )}
+        </div>
+
+        {/* Key Workflows */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Key Workflows
           </label>
           {isEditing ? (
             <textarea
-              value={editedICP.pains.join(', ')}
-              onChange={(e) => handleArrayFieldChange('pains', e.target.value)}
-              placeholder="e.g., Manual processes, Data silos, Poor visibility"
+              value={(editedICP.workflows || []).join(', ')}
+              onChange={(e) => handleArrayFieldChange('workflows', e.target.value)}
+              placeholder="e.g., Coordinate inspections, Produce reports, Manage compliance"
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 text-gray-900 bg-white rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           ) : (
             <ul className="space-y-2">
-              {editedICP.pains.map((pain, index) => (
+              {(editedICP.workflows || []).map((workflow, index) => (
                 <li key={index} className="flex items-start">
-                  <span className="inline-block w-2 h-2 mt-2 mr-2 bg-red-500 rounded-full flex-shrink-0"></span>
-                  <span className="text-sm text-gray-700">{pain}</span>
+                  <span className="inline-block w-2 h-2 mt-2 mr-2 bg-green-500 rounded-full flex-shrink-0"></span>
+                  <span className="text-sm text-gray-700">{workflow}</span>
                 </li>
               ))}
             </ul>
           )}
           {isEditing && (
-            <p className="text-xs text-gray-500 mt-1">Separate multiple pain points with commas</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Describe what users DO with your product (not problems they have)
+            </p>
           )}
         </div>
 

@@ -5,8 +5,9 @@ export interface Customer {
 }
 
 export interface ICP {
+  solution: string;
+  workflows: string[];
   industries: string[];
-  pains: string[];
   buyerRoles: string[];
   firmographics: {
     size: string;

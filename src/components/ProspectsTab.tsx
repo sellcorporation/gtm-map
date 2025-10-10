@@ -1063,10 +1063,10 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                         hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
                       }`}
                       title="View Evidence"
-                    >
+                  >
                       <Eye className="h-4 w-4" />
                       <span className="ml-1 hidden lg:inline">Evidence</span>
-                    </button>
+                  </button>
                     <button
                       onClick={() => findCompetitors(prospect)}
                       disabled={findingCompetitors.has(prospect.id)}

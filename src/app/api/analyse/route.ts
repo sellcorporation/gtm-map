@@ -227,7 +227,10 @@ async function createClusters(prospects: Company[], icp: ICP) {
 async function analyseHandler(request: NextRequest) {
   try {
     const body = await request.json();
-    const { websiteUrl, customers, icp: providedICP } = AnalyseRequestSchema.parse(body);
+    const { websiteUrl, customers, icp: providedICP, batchSize } = AnalyseRequestSchema.parse(body);
+    
+    // Use provided batch size or default to 10
+    const maxProspects = batchSize || 10;
     
     let icp: ICP;
     let icpIsMock = false;
@@ -250,6 +253,11 @@ async function analyseHandler(request: NextRequest) {
     let competitorsIsMock = false;
     
     for (const customer of customers) {
+      // Check if we've reached the limit
+      if (allCompetitors.length >= maxProspects) {
+        break;
+      }
+      
       // Search for competitors
       const searchResults = await searchCompetitors(customer.domain, icp.industries[0] || '');
       
@@ -270,7 +278,10 @@ async function analyseHandler(request: NextRequest) {
         competitor.evidenceUrls = competitor.evidenceUrls.slice(0, 3); // Limit to 3 URLs
       });
       
-      allCompetitors.push(...competitors);
+      // Only add up to the remaining slots
+      const remainingSlots = maxProspects - allCompetitors.length;
+      const competitorsToAdd = competitors.slice(0, remainingSlots);
+      allCompetitors.push(...competitorsToAdd);
     }
     
     // Dedupe by domain

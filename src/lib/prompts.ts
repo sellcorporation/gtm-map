@@ -3,15 +3,32 @@ import { z } from 'zod';
 export const ICP_PROMPT = `You are an expert B2B market analyst. Extract the Ideal Customer Profile (ICP) from the provided website content.
 
 Analyse the website text and identify:
-1. Target industries (specific sectors/verticals)
-2. Pain points (problems the product solves)
-3. Buyer roles (job titles/roles who make decisions)
-4. Firmographics (company size, geography)
+
+1. SOLUTION: What specific solution does this company provide? (one clear sentence)
+   - Example: "Digital inspection and reporting software for property surveyors"
+   - NOT vague like: "Productivity tools" or "Business software"
+
+2. KEY WORKFLOWS: What specific workflows does this solution enable? (what users DO with it)
+   - Example: "coordinate field inspections, produce branded PDF reports, manage compliance documentation"
+   - NOT vague like: "improve efficiency" or "better communication"
+
+3. PRIMARY INDUSTRIES: Specific sectors (not broad categories like "technology")
+   - Example: "Property surveying, building inspection" 
+   - NOT: "Construction, Real Estate, Technology"
+
+4. BUYER ROLES: Actual job titles who make purchasing decisions
+   - Example: "Operations Director, Head of Quality Assurance"
+   - NOT: "Decision makers" or "Executives"
+
+5. FIRMOGRAPHICS: Company size and primary geography
+   - Size: small (1-50), medium (51-200), large (201-1000), enterprise (1000+)
+   - Geography: Be specific (e.g., "UK and Ireland" not "Europe")
 
 Output strict JSON only:
 {
+  "solution": "One sentence describing the core solution",
+  "workflows": ["specific workflow 1", "specific workflow 2", "specific workflow 3"],
   "industries": ["industry1", "industry2"],
-  "pains": ["pain1", "pain2"],
   "buyerRoles": ["role1", "role2"],
   "firmographics": {
     "size": "small/medium/large/enterprise",
@@ -57,12 +74,12 @@ Output strict JSON only:
 export const ADS_PROMPT = `You are a B2B copywriter specialising in persona-aware advertising. Create compelling ad copy for the given cluster.
 
 Cluster: {clusterLabel}
-Pain Points: {pains}
+Key Workflows: {workflows}
 Industries: {industries}
 Buyer Roles: {buyerRoles}
 
 Create ad copy that:
-- Addresses specific pain points
+- Highlights relevant workflows and use cases
 - Speaks to the buyer persona
 - Uses industry-relevant language
 - Includes a clear call-to-action
@@ -100,14 +117,16 @@ export const AnalyseRequestSchema = z.object({
     notes: z.string().optional(),
   })).min(1, 'At least one customer is required'),
   icp: z.object({
+    solution: z.string(),
+    workflows: z.array(z.string()),
     industries: z.array(z.string()),
-    pains: z.array(z.string()),
     buyerRoles: z.array(z.string()),
     firmographics: z.object({
       size: z.string(),
       geo: z.string(),
     }),
   }).optional(),
+  batchSize: z.number().min(5).max(100).optional(),
 });
 
 export const StatusUpdateSchema = z.object({

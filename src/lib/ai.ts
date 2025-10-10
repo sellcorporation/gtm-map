@@ -7,12 +7,13 @@ import type { ICP, Competitor, AdCopy } from '@/types';
 const model = openai('gpt-4o');
 
 const ICPSchema = z.object({
-  industries: z.array(z.string()),
-  pains: z.array(z.string()),
-  buyerRoles: z.array(z.string()),
+  solution: z.string().describe('One sentence describing the core solution provided'),
+  workflows: z.array(z.string()).describe('Key workflows the solution enables (what users DO with it)'),
+  industries: z.array(z.string()).describe('Specific target industries'),
+  buyerRoles: z.array(z.string()).describe('Job titles who make purchasing decisions'),
   firmographics: z.object({
-    size: z.string(),
-    geo: z.string(),
+    size: z.string().describe('Target company size'),
+    geo: z.string().describe('Primary geography'),
   }),
 });
 
@@ -41,12 +42,17 @@ const WebsiteAnalysisSchema = z.object({
 // Mock ICP for testing when OpenAI quota is exceeded
 function generateMockICP(): ICP {
   return {
-    industries: ['Technology', 'Software', 'SaaS'],
-    pains: ['Manual processes', 'Data silos', 'Poor user experience'],
-    buyerRoles: ['CTO', 'VP Engineering', 'Product Manager'],
+    solution: 'Digital inspection and reporting software for property surveyors',
+    workflows: [
+      'Coordinate field inspections and site visits',
+      'Produce branded PDF reports with photos and annotations',
+      'Manage compliance documentation and certification tracking'
+    ],
+    industries: ['Property Surveying', 'Building Inspection', 'Construction Quality Assurance'],
+    buyerRoles: ['Operations Director', 'Head of Quality Assurance', 'Managing Partner'],
     firmographics: {
       size: 'Medium to Enterprise',
-      geo: 'Global'
+      geo: 'UK and Ireland'
     }
   };
 }
@@ -160,7 +166,7 @@ export async function findCompetitors(
 
 export async function generateAdCopy(
   clusterLabel: string,
-  pains: string[],
+  workflows: string[],
   industries: string[],
   buyerRoles: string[]
 ): Promise<{ adCopy: AdCopy; isMock: boolean }> {
@@ -173,7 +179,7 @@ export async function generateAdCopy(
 
     const prompt = ADS_PROMPT
       .replace('{clusterLabel}', clusterLabel)
-      .replace('{pains}', pains.join(', '))
+      .replace('{workflows}', workflows.join(', '))
       .replace('{industries}', industries.join(', '))
       .replace('{buyerRoles}', buyerRoles.join(', '));
 
@@ -337,7 +343,7 @@ Return a JSON object with a "decisionMakers" array.`;
   }
 }
 
-// Analyze a website's content against an ICP
+// Analyze a website's content against an ICP with workflow-based scoring
 export async function analyzeWebsiteAgainstICP(
   websiteContent: string,
   companyName: string,
@@ -352,8 +358,9 @@ export async function analyzeWebsiteAgainstICP(
   try {
     if (!process.env.OPENAI_API_KEY) {
       // Return mock data if no API key
+      const workflows = icp.workflows || [];
       return {
-        rationale: `${companyName} operates in the ${icp.industries[0]} industry and may address ${icp.pains[0]}.`,
+        rationale: `${companyName} operates in the ${icp.industries[0]} industry and may use workflows like ${workflows[0] || 'standard business processes'}.`,
         confidence: Math.floor(Math.random() * 30) + 50, // 50-79
         evidence: [
           { url: `https://${companyDomain}`, snippet: 'Company website content' }
@@ -362,33 +369,60 @@ export async function analyzeWebsiteAgainstICP(
       };
     }
 
-    const prompt = `You are analyzing a company's website to determine if it matches an Ideal Customer Profile (ICP).
+    const prompt = `You are analyzing a company's website to determine if they would benefit from a specific solution.
 
-Company: ${companyName}
+YOUR SOLUTION: ${icp.solution}
+
+Key workflows it enables:
+${icp.workflows.map(w => `- ${w}`).join('\n')}
+
+COMPANY TO ANALYZE: ${companyName}
 Domain: ${companyDomain}
 
-Target ICP:
+Target ICP Context:
 Industries: ${icp.industries.join(', ')}
-Pain Points: ${icp.pains.join(', ')}
 Buyer Roles: ${icp.buyerRoles.join(', ')}
 Company Size: ${icp.firmographics.size}
 Geography: ${icp.firmographics.geo}
 
-Website Content (truncated to first 3000 chars):
+Website Content (first 3000 chars):
 ${websiteContent.slice(0, 3000)}
 
-Analyze this company and provide:
-1. A rationale for why they match (or don't match) the ICP
-2. A confidence score (0-100) in your assessment
-3. 1-3 key evidence snippets from the website that support your analysis
+SCORING CRITERIA (0-100):
 
-Be honest - if the match is poor, say so and give a low confidence score.`;
+1. Industry Match (0-25): Is this company in the right industry?
+2. Geography Match (0-20): Are they in the target geography?
+3. Workflow Relevance (0-40): Do they have workflows that match our solution?
+   - HIGHEST WEIGHT - this is the key question
+   - Look for evidence they do these activities in-house
+   - Example: If solution is "inspection software", do they conduct inspections?
+4. Company Size Match (0-15): Similar scale to target?
+
+CONFIDENCE RULES (STRICTLY ENFORCE):
+- 3+ solid evidence sources: 75-90 confidence
+- 2 sources: 60-70 confidence  
+- 1 source or weak evidence: ≤55 confidence
+
+Provide:
+1. Rationale (workflow-focused - explain if they do these activities)
+2. Confidence score (MUST follow rules above based on evidence count)
+3. 2-5 evidence snippets from the website
+4. Final ICP score (0-100, workflow-weighted)
+
+Be honest - if the workflow match is poor, give a low score even if industry matches.`;
+
+    const ExtendedAnalysisSchema = z.object({
+      rationale: z.string().describe('Why they match (workflow-focused)'),
+      confidence: z.number().min(0).max(100).describe('Confidence (based on evidence count)'),
+      evidenceSnippets: z.array(z.string()).min(2).max(5).describe('2-5 evidence snippets'),
+      icpScore: z.number().min(0).max(100).describe('ICP score (workflow-weighted)'),
+    });
 
     const { object } = await generateObject({
       model,
-      schema: WebsiteAnalysisSchema,
+      schema: ExtendedAnalysisSchema,
       prompt,
-      temperature: 0.3, // Lower temperature for more factual analysis
+      temperature: 0.3,
     });
 
     // Convert evidence snippets to proper format
@@ -397,39 +431,34 @@ Be honest - if the match is poor, say so and give a low confidence score.`;
       snippet,
     }));
 
-    // Calculate ICP score based on confidence and keyword matches
-    let icpScore = Math.floor(object.confidence * 0.7); // Base score from confidence
-
-    // Boost score for industry matches
-    const industryMatch = icp.industries.some(industry =>
-      object.rationale.toLowerCase().includes(industry.toLowerCase()) ||
-      websiteContent.toLowerCase().includes(industry.toLowerCase())
-    );
-    if (industryMatch) icpScore += 15;
-
-    // Boost score for pain point matches
-    const painMatch = icp.pains.some(pain =>
-      object.rationale.toLowerCase().includes(pain.toLowerCase()) ||
-      websiteContent.toLowerCase().includes(pain.toLowerCase())
-    );
-    if (painMatch) icpScore += 15;
-
-    // Cap at 100
-    icpScore = Math.min(icpScore, 100);
+    // Enforce confidence rules based on evidence count
+    let adjustedConfidence = object.confidence;
+    if (evidence.length >= 3) {
+      // With 3+ sources, confidence can be high (75-90)
+      adjustedConfidence = Math.max(75, Math.min(adjustedConfidence, 90));
+    } else if (evidence.length === 2) {
+      // With 2 sources, cap at 70
+      adjustedConfidence = Math.min(adjustedConfidence, 70);
+      if (adjustedConfidence < 60) adjustedConfidence = 60;
+    } else {
+      // With 1 source, cap at 55
+      adjustedConfidence = Math.min(adjustedConfidence, 55);
+    }
 
     return {
       rationale: object.rationale,
-      confidence: object.confidence,
+      confidence: adjustedConfidence,
       evidence,
-      icpScore,
+      icpScore: object.icpScore,
     };
 
   } catch (error) {
     console.error('Error analyzing website against ICP:', error);
     
     // Return mock data on error
+    const workflows = icp.workflows || [];
     return {
-      rationale: `${companyName} operates in the ${icp.industries[0]} industry and may address ${icp.pains[0]}.`,
+      rationale: `${companyName} operates in the ${icp.industries[0]} industry and may use workflows like ${workflows[0] || 'standard business processes'}.`,
       confidence: Math.floor(Math.random() * 30) + 50,
       evidence: [
         { url: `https://${companyDomain}`, snippet: 'Company website content (analysis error)' }
