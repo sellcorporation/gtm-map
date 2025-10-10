@@ -320,7 +320,7 @@ export default function CompanyDetailModal({
         const updatedCompany = {
           ...editedCompany,
           decisionMakers: allDecisionMakers,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         };
         setEditedCompany(updatedCompany);
         
