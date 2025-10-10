@@ -10,7 +10,7 @@ const model = openai('gpt-4o');
 const RegenerateRequestSchema = z.object({
   companyId: z.number().int().positive(),
   companyName: z.string().min(1),
-  companyDomain: z.string().min(1),
+  companyDomain: z.string(), // Allow empty domain - we'll search for it
   icp: z.object({
     solution: z.string(),
     workflows: z.array(z.string()),
@@ -233,14 +233,16 @@ async function regenerateCompanyHandler(request: NextRequest) {
 
     let finalDomain = companyDomain;
     
-    // Check if domain is invalid and search for the real one
-    const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
-    const isInvalid = invalidDomains.includes(companyDomain.toLowerCase().trim()) || 
+    // Check if domain is invalid, empty, or missing - search for the real one
+    const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n', ''];
+    const domainStr = (companyDomain || '').toLowerCase().trim();
+    const isInvalid = !companyDomain || 
+                     invalidDomains.includes(domainStr) || 
                      companyDomain.length < 3 || 
                      !companyDomain.includes('.');
     
     if (isInvalid) {
-      console.log(`Invalid domain "${companyDomain}" for ${companyName}, searching for real domain...`);
+      console.log(`Invalid/empty domain "${companyDomain}" for ${companyName}, searching for real domain...`);
       const foundDomain = await searchForCompanyDomain(companyName);
       
       if (foundDomain) {

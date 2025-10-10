@@ -41,7 +41,9 @@ Output strict JSON only:
 
 Use British English spelling and terminology.`;
 
-export const COMPETITOR_PROMPT = `You are a competitive intelligence expert. Given a company domain, their ICP profile, and web search results, identify direct competitors.
+export const COMPETITOR_PROMPT = `You are a competitive intelligence expert. Extract REAL company names from search results.
+
+CRITICAL: We need actual COMPANY NAMES, not article titles, directories, or aggregators.
 
 Company: {companyDomain}
 Company Name: {companyName}
@@ -50,29 +52,38 @@ ICP: {icp}
 Search Results:
 {searchResults}
 
-Identify up to 10 direct competitors who:
-- Serve the same industries
-- Solve similar pain points
-- Target similar buyer roles
-- Have comparable firmographics
+STRICT RULES FOR COMPANY NAME EXTRACTION:
 
-For each competitor, provide:
-- Company name
-- Domain (if found)
-- Rationale for why they're a competitor
-- Evidence URLs from search results
-- Confidence score (0-100)
+1. **EXTRACT ACTUAL COMPANY NAMES**:
+   ✅ GOOD: "SDL Surveying", "Valunation", "e.Surv Chartered Surveyors"
+   ❌ BAD: "11 Types of Surveyors Shaping Our World" (article title)
+   ❌ BAD: "Best Surveying Companies in New York" (list/article)
+   ❌ BAD: "Surveyors in New York" (generic description)
+   ❌ BAD: "THE BEST 10 LAND SURVEYING in EDISON, NJ" (Yelp/directory listing)
 
-Output strict JSON only:
-[
-  {
-    "name": "Company Name",
-    "domain": "company.com",
-    "rationale": "Brief explanation of similarity",
-    "evidenceUrls": ["url1", "url2"],
-    "confidence": 85
-  }
-]`;
+2. **FILTER OUT AGGREGATORS/DIRECTORIES**:
+   ❌ SKIP: clutch.co, yelp.com, ricsfirms.com, trustpilot.com, linkedin.com (directories)
+   ❌ SKIP: Any domain that's a review site, directory, or aggregator
+   ✅ KEEP: Only actual company websites
+
+3. **EXTRACT FROM CONTEXT**:
+   - If you see "ABC Company is a leading surveyor..." → Name is "ABC Company"
+   - If URL is "abcsurveyors.com" and context says "ABC Surveyors provides..." → Name is "ABC Surveyors"
+   - Look for "About [Company]", company descriptions, contact pages
+
+4. **VALIDATE DOMAIN MATCHES COMPANY**:
+   - Domain should be the company's actual website
+   - Not a review site, not a directory, not an article site
+   - Example: If name is "SDL Surveying", domain should be like "sdlsurveying.co.uk"
+
+5. **CONFIDENCE SCORING**:
+   - 80-100: Clear company name + domain match + evidence they're in same industry
+   - 60-79: Company name found but domain unclear
+   - 0-59: Uncertain or might be an aggregator/article
+
+Return up to 10 REAL competitors. If search results only contain directories/articles, return fewer competitors or empty array.
+
+Output strict JSON only with "competitors" array.`;
 
 export const ADS_PROMPT = `You are a B2B copywriter specialising in persona-aware advertising. Create compelling ad copy for the given cluster.
 

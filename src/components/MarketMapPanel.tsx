@@ -27,9 +27,9 @@ export default function MarketMapPanel({
   onMarkAsCustomer
 }: MarketMapPanelProps) {
   const [activeTab, setActiveTab] = useState<'prospects' | 'clusters' | 'ads'>('prospects');
-  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [batchSize, setBatchSize] = useState(10);
+  const [generateProgress, setGenerateProgress] = useState<string[]>([]);
+  const [showGenerateProgress, setShowGenerateProgress] = useState(false);
 
   const handleExportCSV = async () => {
     try {

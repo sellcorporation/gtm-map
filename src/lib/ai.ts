@@ -19,11 +19,11 @@ const ICPSchema = z.object({
 
 const CompetitorSchema = z.object({
   competitors: z.array(z.object({
-    name: z.string(),
-    domain: z.string(),
-    rationale: z.string(),
-    evidenceUrls: z.array(z.string()),
-    confidence: z.number().min(0).max(100),
+    name: z.string().describe('The actual COMPANY NAME (not article titles, not descriptions, not "best X companies")'),
+    domain: z.string().describe('Company domain/website'),
+    rationale: z.string().describe('Why they are a competitor'),
+    evidenceUrls: z.array(z.string()).describe('URLs supporting this is a real company'),
+    confidence: z.number().min(0).max(100).describe('Confidence this is a real company (not an aggregator or article)'),
   }))
 });
 
