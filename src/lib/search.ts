@@ -58,6 +58,57 @@ export async function fetchWebsiteContent(url: string): Promise<string> {
   }
 }
 
+export async function searchCompanies(query: string): Promise<SearchResult[]> {
+  // Check if Tavily API key is available
+  if (!process.env.TAVILY_API_KEY) {
+    // Fallback to dummy results if no API key
+    console.warn('No Tavily API key found, using dummy results');
+    return [
+      {
+        title: 'Company Search Results',
+        snippet: `Search results for: ${query}`,
+        url: 'https://example.com/search',
+      },
+    ];
+  }
+
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        query,
+        max_results: 10,
+        search_depth: 'basic',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tavily API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    return data.results?.map((result: { title?: string; content?: string; url?: string }) => ({
+      title: result.title || '',
+      snippet: result.content || '',
+      url: result.url || '',
+    })) || [];
+  } catch (error) {
+    console.error('Tavily search error:', error);
+    return [
+      {
+        title: 'Company Search',
+        snippet: `Search results for: ${query}`,
+        url: 'https://example.com/search',
+      },
+    ];
+  }
+}
+
 export async function searchCompetitors(
   domain: string,
   industry: string

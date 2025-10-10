@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
-import { searchCompetitors, fetchWebsiteContent } from '@/lib/search';
+import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 import type { Company } from '@/types';
 
@@ -59,19 +59,33 @@ async function generateMoreHandler(request: NextRequest) {
     console.log(`Search query: ${searchQuery}`);
     
     // Search for new companies
-    const searchResults = await searchCompetitors(searchQuery);
+    const searchResults = await searchCompanies(searchQuery);
     
-    // Filter out duplicates and extract unique domains
-    const uniqueCandidates = searchResults
-      .filter(result => {
-        const domain = result.domain?.toLowerCase();
-        return domain && !existingDomains.has(domain);
+    // Extract domains from URLs and filter out duplicates
+    const candidates = searchResults
+      .map(result => {
+        try {
+          // Extract domain from URL
+          const urlObj = new URL(result.url);
+          const domain = urlObj.hostname.replace('www.', '');
+          
+          // Extract company name from title (take first part before separator)
+          const name = result.title.split(/[-|–—]/)[0].trim();
+          
+          return { name, domain, url: result.url };
+        } catch (error) {
+          console.error('Failed to parse search result:', error);
+          return null;
+        }
       })
+      .filter((candidate): candidate is { name: string; domain: string; url: string } => 
+        candidate !== null && !existingDomains.has(candidate.domain.toLowerCase())
+      )
       .slice(0, Math.min(batchSize * 2, 50)); // Get more candidates than needed
     
-    console.log(`Found ${uniqueCandidates.length} unique candidate domains`);
+    console.log(`Found ${candidates.length} unique candidate domains`);
     
-    if (uniqueCandidates.length === 0) {
+    if (candidates.length === 0) {
       return NextResponse.json({
         success: true,
         prospects: [],
@@ -84,7 +98,7 @@ async function generateMoreHandler(request: NextRequest) {
     const newProspects: Company[] = [];
     let processedCount = 0;
     
-    for (const candidate of uniqueCandidates) {
+    for (const candidate of candidates) {
       if (newProspects.length >= batchSize) break;
       
       try {
