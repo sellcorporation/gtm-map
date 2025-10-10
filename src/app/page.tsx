@@ -596,30 +596,33 @@ export default function HomePage() {
         onClose={() => setShowSettings(false)} 
       />
 
-      {/* Analysis Progress Panel */}
+      {/* Analysis Progress Panel - Compact Left Sidebar */}
       {showAnalysisProgress && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-96 bg-white shadow-2xl border-l border-gray-200 z-50 overflow-hidden flex flex-col">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              <h3 className="font-semibold">AI Analysis in Progress</h3>
-            </div>
+        <div className="fixed inset-y-0 left-0 w-80 bg-white shadow-xl border-r border-gray-200 z-40 overflow-hidden flex flex-col">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-3 flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <h3 className="font-medium text-sm">AI Working...</h3>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 bg-gray-50">
             {analysisProgress.map((message, index) => (
               <div
                 key={index}
-                className="text-sm text-gray-700 bg-white p-2 rounded shadow-sm animate-fade-in"
+                className="text-xs text-gray-700 bg-white p-2 rounded border border-gray-100 animate-fade-in"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 {message}
               </div>
             ))}
             {analysisProgress.length === 0 && (
-              <div className="text-sm text-gray-500 text-center py-8">
-                Initializing analysis...
+              <div className="text-xs text-gray-500 text-center py-8">
+                Initializing...
               </div>
             )}
+          </div>
+          <div className="p-2 bg-blue-50 border-t border-blue-100 text-center">
+            <p className="text-xs text-blue-700 font-medium">
+              ✨ AI analyzing prospects
+            </p>
           </div>
         </div>
       )}

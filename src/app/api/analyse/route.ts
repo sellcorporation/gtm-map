@@ -335,6 +335,12 @@ async function analyseHandler(request: NextRequest) {
           sendMessage(`\n[${analyzedCount}/${uniqueCompetitors.length}] 🔎 Analyzing ${competitor.name}...`);
           
           try {
+            // Validate domain before fetching
+            if (!competitor.domain || competitor.domain.length < 3) {
+              sendMessage(`⚠️ Invalid domain for ${competitor.name}, skipping...`);
+              continue;
+            }
+            
             sendMessage(`📡 Fetching website content from ${competitor.domain}...`);
             
             // Fetch website content for proper analysis
@@ -414,7 +420,12 @@ async function analyseHandler(request: NextRequest) {
         // Check if we used mock data
         const usedMockData = icpIsMock || competitorsIsMock;
 
-        sendMessage(`\n🎉 Analysis complete! Found ${prospectRecords.length} prospects.`);
+        // Summary message
+        const skippedCount = uniqueCompetitors.length - prospectRecords.length;
+        if (skippedCount > 0) {
+          sendMessage(`\n📋 Summary: ${prospectRecords.length} new prospects added, ${skippedCount} skipped (duplicates or errors)`);
+        }
+        sendMessage(`\n🎉 Analysis complete! Total: ${prospectRecords.length} prospects ready.`);
 
         // Send final result
         const result = {

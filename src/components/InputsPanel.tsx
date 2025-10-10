@@ -38,6 +38,16 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
     }
   }, [initialCustomers]);
 
+  // Helper function to sanitize domain
+  const sanitizeDomain = useCallback((domain: string): string => {
+    return domain
+      .trim()
+      .replace(/^https?:\/\//, '') // Remove http:// or https://
+      .replace(/^www\./, '') // Remove www.
+      .replace(/\/$/, '') // Remove trailing slash
+      .toLowerCase();
+  }, []);
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -60,7 +70,7 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
             .filter((row) => row.name && row.domain)
             .map((row) => ({
               name: row.name.trim(),
-              domain: row.domain.trim(),
+              domain: sanitizeDomain(row.domain),
               notes: row.notes?.trim(),
             }));
 
@@ -86,7 +96,7 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
         setError('Error reading CSV file. Please try again.');
       },
     });
-  }, []);
+  }, [sanitizeDomain]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -122,7 +132,12 @@ export default function InputsPanel({ onAnalyse, isLoading, initialWebsiteUrl = 
       return;
     }
 
-    const currentCustomers = inputMode === 'csv' ? customers : manualCustomers.filter(c => c.name.trim() && c.domain.trim());
+    // Get customers and sanitize domains
+    const currentCustomers = (inputMode === 'csv' ? customers : manualCustomers.filter(c => c.name.trim() && c.domain.trim()))
+      .map(customer => ({
+        ...customer,
+        domain: sanitizeDomain(customer.domain),
+      }));
     
     if (currentCustomers.length === 0) {
       setError(inputMode === 'csv' ? 'Please upload a customer CSV file' : 'Please add at least one customer');
