@@ -427,15 +427,83 @@ async function analyseHandler(request: NextRequest) {
             prospectRecords.push(prospect[0]);
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            sendMessage(`⚠️ Failed to analyze ${competitor.name}: ${errorMessage}`);
             
             // Only use fallback if it's NOT a duplicate key error
             if (errorMessage.includes('duplicate key') || errorMessage.includes('companies_domain_unique')) {
               sendMessage(`⏭️ ${competitor.domain} already exists in database, skipping...`);
               continue;
             }
+            
+            // If website fetch failed, try to find the correct domain
+            if (errorMessage.includes('Failed to fetch website') || errorMessage.includes('fetch failed')) {
+              sendMessage(`⚠️ Domain ${competitor.domain} failed to load, searching for correct domain...`);
+              
+              // Search for the correct domain using Tavily
+              try {
+                const tavilyKey = process.env.TAVILY_API_KEY;
+                if (tavilyKey) {
+                  const searchQuery = `${competitor.name} official website`;
+                  const response = await fetch('https://api.tavily.com/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      api_key: tavilyKey,
+                      query: searchQuery,
+                      max_results: 3,
+                    }),
+                  });
+
+                  if (response.ok) {
+                    const data = await response.json();
+                    if (data.results && data.results.length > 0) {
+                      const url = data.results[0].url;
+                      const correctedDomain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+                      sendMessage(`🔍 Found correct domain: ${correctedDomain}`);
+                      
+                      // Retry with corrected domain
+                      try {
+                        sendMessage(`📡 Fetching website content from ${correctedDomain}...`);
+                        const websiteContent = await fetchWebsite(correctedDomain);
+                        
+                        sendMessage(`🧠 AI analyzing workflow fit for ${competitor.name}...`);
+                        const analysis = await analyzeWebsiteAgainstICP(
+                          websiteContent,
+                          competitor.name,
+                          correctedDomain,
+                          icp
+                        );
+                        
+                        sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}% (domain corrected)`);
+                        
+                        const prospect = await db.insert(companies).values({
+                          userId: 'demo-user',
+                          name: competitor.name,
+                          domain: correctedDomain, // Use corrected domain
+                          source: 'expanded',
+                          sourceCustomerDomain: customers[0]?.domain,
+                          icpScore: analysis.icpScore,
+                          confidence: analysis.confidence,
+                          status: 'New',
+                          rationale: analysis.rationale,
+                          evidence: analysis.evidence,
+                        }).returning();
+                        
+                        prospectRecords.push(prospect[0]);
+                        continue; // Success with corrected domain, move to next
+                      } catch (retryError) {
+                        sendMessage(`⚠️ Corrected domain also failed, using fallback...`);
+                      }
+                    }
+                  }
+                }
+              } catch (searchError) {
+                sendMessage(`⚠️ Domain search failed, using fallback...`);
+              }
+            }
+            
+            sendMessage(`⚠️ Failed to analyze ${competitor.name}: ${errorMessage}`);
         
-            // Fall back to simple scoring if AI analysis fails
+            // Fall back to simple scoring if AI analysis and domain correction both failed
             try {
               sendMessage(`🔄 Using fallback scoring for ${competitor.name}...`);
               const icpScore = await computeICPScore(competitor, icp);
