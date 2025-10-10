@@ -47,8 +47,8 @@ export async function isAuthenticated(): Promise<boolean> {
   return !!sessionId;
 }
 
-export function requireAuth(handler: (req: NextRequest) => Promise<NextResponse>) {
-  return async (req: NextRequest) => {
+export function requireAuth(handler: (req: NextRequest) => Promise<NextResponse | Response>) {
+  return async (req: NextRequest): Promise<NextResponse | Response> => {
     if (!(await isAuthenticated())) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
