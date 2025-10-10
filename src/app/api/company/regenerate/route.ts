@@ -137,25 +137,91 @@ Be objective and evidence-based.`;
   }
 }
 
+async function searchForCompanyDomain(companyName: string): Promise<string | null> {
+  try {
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    if (!tavilyKey) {
+      console.log('No Tavily API key, cannot search for domain');
+      return null;
+    }
+
+    const searchQuery = `${companyName} official website`;
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        api_key: tavilyKey,
+        query: searchQuery,
+        max_results: 3,
+      }),
+    });
+
+    if (!response.ok) {
+      console.log('Tavily search failed');
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Extract domain from the first result
+    if (data.results && data.results.length > 0) {
+      const url = data.results[0].url;
+      const domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+      console.log(`Found domain for ${companyName}: ${domain}`);
+      return domain;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error searching for company domain:', error);
+    return null;
+  }
+}
+
 async function regenerateCompanyHandler(request: NextRequest) {
   try {
     const body = await request.json();
     const { companyId, companyName, companyDomain, icp } = RegenerateRequestSchema.parse(body);
 
+    let finalDomain = companyDomain;
+    
+    // Check if domain is invalid and search for the real one
+    const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
+    const isInvalid = invalidDomains.includes(companyDomain.toLowerCase().trim()) || 
+                     companyDomain.length < 3 || 
+                     !companyDomain.includes('.');
+    
+    if (isInvalid) {
+      console.log(`Invalid domain "${companyDomain}" for ${companyName}, searching for real domain...`);
+      const foundDomain = await searchForCompanyDomain(companyName);
+      
+      if (foundDomain) {
+        console.log(`Found domain: ${foundDomain}`);
+        finalDomain = foundDomain;
+      } else {
+        return NextResponse.json(
+          { error: `Could not find a valid website for ${companyName}. Please enter the domain manually and try again.` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Fetch fresh website content
     let websiteContent: string;
     try {
-      websiteContent = await fetchWebsiteContent(companyDomain);
+      websiteContent = await fetchWebsiteContent(finalDomain);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch website content';
       return NextResponse.json(
-        { error: `Could not access website: ${errorMessage}` },
+        { error: `Could not access website (${finalDomain}): ${errorMessage}. Try editing the domain manually.` },
         { status: 400 }
       );
     }
 
     // Re-analyze the company
-    const analysis = await analyzeCompany(companyName, companyDomain, websiteContent, icp);
+    const analysis = await analyzeCompany(companyName, finalDomain, websiteContent, icp);
 
     // In production with a real DB, you would update the database here:
     // await db.update(companies)
@@ -170,6 +236,7 @@ async function regenerateCompanyHandler(request: NextRequest) {
     return NextResponse.json({
       success: true,
       companyId,
+      domain: finalDomain, // Return the (possibly updated) domain
       ...analysis,
       mockData: false, // Set to true if using mock data
     });

@@ -106,9 +106,10 @@ export default function CompanyDetailModal({
 
       const data = await response.json();
       
-      // Update the edited company with new analysis
+      // Update the edited company with new analysis (including potentially updated domain)
       const updatedCompany = {
         ...editedCompany,
+        domain: data.domain || editedCompany.domain, // Use new domain if found
         rationale: data.rationale,
         evidence: data.evidence,
         icpScore: data.icpScore,
@@ -120,7 +121,9 @@ export default function CompanyDetailModal({
       // Also update via callback so parent state is updated
       onUpdate(updatedCompany);
       
-      if (data.mockData) {
+      if (data.domain && data.domain !== editedCompany.domain) {
+        toast.success(`Found correct domain: ${data.domain}! Details regenerated.`);
+      } else if (data.mockData) {
         toast.success('Company details regenerated (using demo data - OpenAI quota exceeded)');
       } else {
         toast.success('Company details regenerated successfully with fresh data!');
@@ -209,15 +212,34 @@ export default function CompanyDetailModal({
                 className="text-xl sm:text-2xl font-bold text-gray-900 bg-white border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 w-full"
               />
             </div>
-            <a
-              href={editedCompany.domain.startsWith('http') ? editedCompany.domain : `https://${editedCompany.domain}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 flex items-center mt-1 text-sm break-all"
-            >
-              {editedCompany.domain}
-              <ExternalLink className="h-3 w-3 ml-1 flex-shrink-0" />
-            </a>
+            
+            {/* Domain Edit Field */}
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Website Domain
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={editedCompany.domain}
+                  onChange={(e) => setEditedCompany({ ...editedCompany, domain: e.target.value })}
+                  placeholder="e.g., company.com"
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                {editedCompany.domain && editedCompany.domain.toLowerCase() !== 'n/a' && editedCompany.domain.includes('.') && (
+                  <a
+                    href={editedCompany.domain.startsWith('http') ? editedCompany.domain : `https://${editedCompany.domain}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+                    title="Visit website"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            </div>
+            
             <button
               onClick={handleRegenerate}
               disabled={isRegenerating}

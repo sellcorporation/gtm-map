@@ -291,10 +291,50 @@ async function analyseHandler(request: NextRequest) {
             competitorsIsMock = true;
           }
           
-          // Add source customer info
-          competitors.forEach(competitor => {
+          // Add source customer info and search for missing domains
+          for (const competitor of competitors) {
             competitor.evidenceUrls = competitor.evidenceUrls.slice(0, 3); // Limit to 3 URLs
-          });
+            
+            // Check if domain is invalid and try to find the real one
+            const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
+            const domain = competitor.domain.toLowerCase().trim();
+            const isInvalid = invalidDomains.includes(domain) || domain.length < 3 || !domain.includes('.');
+            
+            if (isInvalid) {
+              sendMessage(`⚠️ Invalid domain for ${competitor.name}, searching for correct domain...`);
+              
+              // Try to find the real domain using Tavily search
+              try {
+                const tavilyKey = process.env.TAVILY_API_KEY;
+                if (tavilyKey) {
+                  const searchQuery = `${competitor.name} official website`;
+                  const searchResponse = await fetch('https://api.tavily.com/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      api_key: tavilyKey,
+                      query: searchQuery,
+                      max_results: 3,
+                    }),
+                  });
+                  
+                  if (searchResponse.ok) {
+                    const searchData = await searchResponse.json();
+                    if (searchData.results && searchData.results.length > 0) {
+                      const url = searchData.results[0].url;
+                      const foundDomain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+                      competitor.domain = foundDomain;
+                      sendMessage(`✅ Found domain for ${competitor.name}: ${foundDomain}`);
+                    } else {
+                      sendMessage(`❌ Could not find domain for ${competitor.name}`);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error searching for domain for ${competitor.name}:`, error);
+              }
+            }
+          }
           
           // Only add up to the remaining slots
           const remainingSlots = maxProspects - allCompetitors.length;
@@ -302,7 +342,8 @@ async function analyseHandler(request: NextRequest) {
           allCompetitors.push(...competitorsToAdd);
         }
     
-    // Filter out invalid domains first
+    // Filter out invalid domains (those we couldn't find)
+    sendMessage(`\n🔍 Validating domains...`);
     const invalidDomains = ['n/a', 'na', 'unknown', 'not found', 'none', 'n'];
     const validCompetitors = allCompetitors.filter(competitor => {
       const domain = competitor.domain.toLowerCase().trim();
