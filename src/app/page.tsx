@@ -404,6 +404,12 @@ export default function HomePage() {
             notes: updatedProspect.notes,
             tags: updatedProspect.tags,
             relatedCompanyIds: updatedProspect.relatedCompanyIds,
+            decisionMakers: updatedProspect.decisionMakers,
+            // Include analysis fields from regenerate
+            rationale: updatedProspect.rationale,
+            evidence: updatedProspect.evidence,
+            icpScore: updatedProspect.icpScore,
+            confidence: updatedProspect.confidence,
           }),
         });
       } catch (error) {

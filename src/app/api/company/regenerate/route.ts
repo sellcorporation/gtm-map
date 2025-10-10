@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { requireAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { companies } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
 import type { ICP } from '@/types';
 
 const model = openai('gpt-4o');
@@ -32,6 +35,79 @@ const CompanyAnalysisSchema = z.object({
     snippet: z.string().optional(),
   })),
 });
+
+const CompanyNameExtractionSchema = z.object({
+  officialName: z.string().describe('The official company name as found on their website'),
+  confidence: z.number().min(0).max(100).describe('Confidence that this is the correct official name'),
+});
+
+async function extractCompanyName(
+  currentName: string,
+  domain: string,
+  websiteContent: string
+): Promise<{ name: string; wasUpdated: boolean }> {
+  // ALWAYS extract the official company name - either name or domain might be wrong
+  try {
+    const EXTRACT_NAME_PROMPT = `Extract the OFFICIAL company name from this website.
+
+**Current Database Info:**
+- Name: "${currentName}"
+- Domain: ${domain}
+
+**Website Content:**
+${websiteContent.slice(0, 4000)}
+
+**CRITICAL: Either the name OR domain might be wrong. Your job is to find the TRUE official name from the website.**
+
+Look for the company name in:
+1. Page <title> tag
+2. Header/navigation branding
+3. "About" or "About Us" section
+4. Footer copyright (e.g., "© 2024 CompanyName Ltd")
+5. Contact page
+6. Meta descriptions
+
+**Examples of what to do:**
+- If name is "Surveying" but domain is "acmesurveying.co.uk" and site says "Acme Surveying Limited" → return "Acme Surveying Limited"
+- If name is "ABC Ltd" but site consistently says "ABC Surveying & Property Services Ltd" → return full name
+- If name is "Company XYZ" and site confirms "Company XYZ Ltd" → return "Company XYZ Ltd"
+
+**Rules:**
+- Return the EXACT official name as shown on the website
+- Include legal suffixes (Ltd, Limited, LLC, Inc, etc.) if they use them
+- Use the name from the homepage/header, not article titles
+- Be confident - if you see a clear official name, return it
+- Minimum confidence: 50% (if website is unclear, keep current name)
+
+Return the official name and your confidence (0-100).`;
+
+    const { object } = await generateObject({
+      model,
+      schema: CompanyNameExtractionSchema,
+      prompt: EXTRACT_NAME_PROMPT,
+      temperature: 0.1,
+    });
+
+    console.log(`Name extraction result: "${object.officialName}" (confidence: ${object.confidence}%, current: "${currentName}")`);
+
+    // Normalize for comparison (trim and compare case-insensitively for "same" check)
+    const normalizedExtracted = object.officialName.trim();
+    const normalizedCurrent = currentName.trim();
+    const nameChanged = normalizedExtracted.toLowerCase() !== normalizedCurrent.toLowerCase();
+
+    // Accept the new name if confidence >= 50% AND name is different
+    if (object.confidence >= 50 && nameChanged) {
+      console.log(`✓ Accepting extracted name: "${normalizedExtracted}" (was: "${normalizedCurrent}")`);
+      return { name: normalizedExtracted, wasUpdated: true };
+    }
+
+    console.log(`✗ Keeping current name: "${normalizedCurrent}" (confidence too low or same name)`);
+    return { name: normalizedCurrent, wasUpdated: false };
+  } catch (error) {
+    console.error('Error extracting company name:', error);
+    return { name: currentName, wasUpdated: false };
+  }
+}
 
 async function fetchWebsiteContent(domain: string): Promise<string> {
   try {
@@ -268,25 +344,43 @@ async function regenerateCompanyHandler(request: NextRequest) {
       );
     }
 
-    // Re-analyze the company
-    const analysis = await analyzeCompany(companyName, finalDomain, websiteContent, icp);
+    // Extract the correct company name from website
+    console.log(`\n=== EXTRACTING COMPANY NAME ===`);
+    console.log(`Input name: "${companyName}"`);
+    console.log(`Input domain: "${finalDomain}"`);
+    console.log(`Website content length: ${websiteContent.length} chars`);
+    
+    const { name: extractedName, wasUpdated: nameWasUpdated } = await extractCompanyName(
+      companyName,
+      finalDomain,
+      websiteContent
+    );
 
-    // In production with a real DB, you would update the database here:
-    // await db.update(companies)
-    //   .set({
-    //     icpScore: analysis.icpScore,
-    //     confidence: analysis.confidence,
-    //     rationale: analysis.rationale,
-    //     evidence: analysis.evidence,
-    //   })
-    //   .where(eq(companies.id, companyId));
+    console.log(`\n=== EXTRACTION RESULT ===`);
+    console.log(`Extracted name: "${extractedName}"`);
+    console.log(`Name was updated: ${nameWasUpdated}`);
+    console.log(`===========================\n`);
+
+    // Re-analyze the company
+    const analysis = await analyzeCompany(extractedName, finalDomain, websiteContent, icp);
+
+    // DON'T save to database yet - return proposed changes for user review
+    // The frontend will show a diff and let user accept/reject
 
     return NextResponse.json({
       success: true,
       companyId,
-      domain: finalDomain, // Return the (possibly updated) domain
-      ...analysis,
-      mockData: false, // Set to true if using mock data
+      proposedChanges: {
+        name: extractedName,
+        domain: finalDomain,
+        rationale: analysis.rationale,
+        evidence: analysis.evidence,
+        icpScore: analysis.icpScore,
+        confidence: analysis.confidence,
+      },
+      nameWasUpdated, // Let the frontend know if name changed
+      domainWasUpdated: finalDomain !== companyDomain,
+      mockData: false,
     });
 
   } catch (error) {

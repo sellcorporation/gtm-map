@@ -32,6 +32,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [addingManualDM, setAddingManualDM] = useState<number | null>(null);
   const [manualDMData, setManualDMData] = useState<DecisionMaker>({
     name: '',
@@ -108,15 +109,55 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     return <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
-  const sortedProspects = useMemo(() => {
+  // Search and filter prospects
+  const { filteredProspects, matchedDecisionMakers } = useMemo(() => {
     // First filter by minimum ICP score
-    const filtered = prospects.filter(p => p.icpScore >= minICPScore);
+    let filtered = prospects.filter(p => p.icpScore >= minICPScore);
     
+    // Apply search filter
+    const matchedDMs = new Map<number, Set<string>>(); // prospectId -> Set of matched DM names
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      
+      filtered = filtered.filter(prospect => {
+        // Check company name
+        if (prospect.name.toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Check domain
+        if (prospect.domain.toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Check decision makers
+        const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+        const matchingDMs = decisionMakers.filter(dm => 
+          dm.quality !== 'poor' && (
+            dm.name.toLowerCase().includes(query) ||
+            dm.role.toLowerCase().includes(query)
+          )
+        );
+        
+        if (matchingDMs.length > 0) {
+          matchedDMs.set(prospect.id, new Set(matchingDMs.map(dm => dm.name)));
+          return true;
+        }
+        
+        return false;
+      });
+    }
+    
+    return { filteredProspects: filtered, matchedDecisionMakers: matchedDMs };
+  }, [prospects, minICPScore, searchQuery]);
+
+  const sortedProspects = useMemo(() => {
     if (!sortField || !sortDirection) {
-      return filtered;
+      return filteredProspects;
     }
 
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = [...filteredProspects].sort((a, b) => {
       let aValue: string | number;
       let bValue: string | number;
 
@@ -167,7 +208,20 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     });
 
     return sorted;
-  }, [prospects, sortField, sortDirection, minICPScore]);
+  }, [filteredProspects, sortField, sortDirection]);
+
+  // Auto-expand rows with matched decision makers
+  useEffect(() => {
+    if (matchedDecisionMakers.size > 0) {
+      setExpandedRows(prev => {
+        const newExpanded = new Set(prev);
+        matchedDecisionMakers.forEach((_, prospectId) => {
+          newExpanded.add(prospectId);
+        });
+        return newExpanded;
+      });
+    }
+  }, [matchedDecisionMakers]);
 
   const handleStatusChange = async (id: number, newStatus: string) => {
     try {
@@ -236,6 +290,14 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         ? icp.buyerRoles 
         : ['CEO', 'CTO', 'VP Sales', 'Head of Marketing'];
       
+      // Prepare existing decision makers (including those marked as poor quality)
+      const existingDMs = (prospect.decisionMakers as DecisionMaker[]) || [];
+      const existingDecisionMakers = existingDMs.map(dm => ({
+        name: dm.name,
+        role: dm.role,
+        quality: dm.quality,
+      }));
+      
       const response = await fetch('/api/decision-makers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,6 +306,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           companyName: prospect.name,
           companyDomain: prospect.domain,
           buyerRoles,
+          existingDecisionMakers,
         }),
       });
 
@@ -255,21 +318,32 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
       
       // Check if any decision makers were found
       if (data.decisionMakers.length === 0) {
-        toast.info('No public decision maker data found for this company. Click "Add Manually" to add contacts yourself.');
+        // Check if we have rejected decision makers
+        const rejectedCount = existingDMs.filter(dm => dm.quality === 'poor').length;
+        
+        if (rejectedCount > 0) {
+          toast.info(`No additional decision makers found. The AI couldn't find other contacts beyond the ${rejectedCount} you already rejected. Try adding contacts manually or check back later.`, {
+            duration: 6000,
+          });
+        } else {
+          toast.info('No public decision maker data found for this company. Click "Add Manually" to add contacts yourself.');
+        }
         return;
       }
       
-      // Append new decision makers to existing ones (if any)
-      const existingDMs = (prospect.decisionMakers as DecisionMaker[]) || [];
+      // Decision makers are already saved to database by the API
+      // We need to fetch the updated company from database to get the merged decision makers
+      // For now, manually merge in the UI (the backend already saved them)
       const updatedProspect = {
         ...prospect,
         decisionMakers: [...existingDMs, ...data.decisionMakers],
       };
       
+      // Update the local state only - don't call the API again since decision-makers endpoint already saved to DB
       onProspectUpdate(updatedProspect);
       
       // Show success message - we only return real data now
-      toast.success(`Added ${data.decisionMakers.length} real decision maker${data.decisionMakers.length > 1 ? 's' : ''} from web search!`);
+      toast.success(`Added ${data.decisionMakers.length} new decision maker${data.decisionMakers.length > 1 ? 's' : ''} from web search!`);
     } catch (error) {
       console.error('Error generating decision makers:', error);
       toast.error('Failed to generate decision makers');
@@ -279,6 +353,35 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         next.delete(prospect.id);
         return next;
       });
+    }
+  };
+
+  const updateDecisionMakerQuality = async (
+    prospect: Company,
+    dmIndex: number,
+    quality: 'good' | 'poor'
+  ) => {
+    try {
+      const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+      const updatedDMs = decisionMakers.map((dm, idx) => 
+        idx === dmIndex ? { ...dm, quality } : dm
+      );
+      
+      const updatedProspect = {
+        ...prospect,
+        decisionMakers: updatedDMs,
+      };
+      
+      onProspectUpdate(updatedProspect);
+      
+      if (quality === 'good') {
+        toast.success('Marked as relevant');
+      } else {
+        toast.info('Marked as not relevant. This person won\'t be suggested again.');
+      }
+    } catch (error) {
+      console.error('Error updating decision maker quality:', error);
+      toast.error('Failed to update quality');
     }
   };
 
@@ -359,13 +462,18 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   };
 
   const deleteDecisionMaker = (prospect: Company, dmIndex: number) => {
-    if (!confirm('Are you sure you want to delete this decision maker?')) {
+    if (!confirm('Are you sure you want to delete this decision maker? They won\'t be suggested again if you regenerate.')) {
       return;
     }
 
     try {
       const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
-      const updatedDMs = decisionMakers.filter((_, idx) => idx !== dmIndex);
+      
+      // Mark as poor quality before deleting so AI knows not to suggest again
+      const dmToDelete = decisionMakers[dmIndex];
+      const updatedDMs = decisionMakers.map((dm, idx) => 
+        idx === dmIndex ? { ...dm, quality: 'poor' as const } : dm
+      );
 
       const updatedProspect = {
         ...prospect,
@@ -373,7 +481,10 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
       };
 
       onProspectUpdate(updatedProspect);
-      toast.success('Decision maker deleted');
+      toast.success('Decision maker marked as not relevant and will be hidden');
+      
+      // Note: We're keeping them with 'poor' quality rather than actually deleting
+      // This way the AI knows not to suggest them again on regeneration
     } catch (error) {
       console.error('Error deleting decision maker:', error);
       toast.error('Failed to delete decision maker');
@@ -828,7 +939,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         </div>
       )}
 
-      {/* Action Buttons */}
+      {/* Action Buttons and Search */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <button
@@ -847,6 +958,29 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
               Add Manually
             </button>
           )}
+        </div>
+        
+        {/* Search Bar */}
+        <div className="relative">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, domain, or decision maker..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-10 py-2 w-80 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -991,11 +1125,32 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sortedProspects.map((prospect) => {
-              const isExpanded = expandedRows.has(prospect.id);
-              const decisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
-              
-              return (
+            {sortedProspects.length === 0 && searchQuery ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-12 text-center">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <Search className="h-12 w-12 text-gray-300" />
+                    <p className="text-gray-500 font-medium">No results found</p>
+                    <p className="text-sm text-gray-400">
+                      No prospects or decision makers match &quot;{searchQuery}&quot;
+                    </p>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Clear search
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              sortedProspects.map((prospect) => {
+                const isExpanded = expandedRows.has(prospect.id);
+                const allDecisionMakers = (prospect.decisionMakers as DecisionMaker[]) || [];
+                // Filter out decision makers marked as poor quality (rejected/deleted)
+                const decisionMakers = allDecisionMakers.filter(dm => dm.quality !== 'poor');
+                
+                return (
                 <React.Fragment key={prospect.id}>
                   <tr 
                     className="hover:bg-gray-50 transition-colors"
@@ -1283,9 +1438,17 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {decisionMakers.map((dm, idx) => {
                               const isEditing = editingDM?.prospectId === prospect.id && editingDM?.dmIndex === idx;
+                              const isMatched = matchedDecisionMakers.get(prospect.id)?.has(dm.name);
                               
                               return (
-                                <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
+                                <div 
+                                  key={idx} 
+                                  className={`bg-white border rounded-lg p-3 transition-all ${
+                                    isMatched 
+                                      ? 'border-blue-400 ring-2 ring-blue-200 shadow-md' 
+                                      : 'border-gray-200'
+                                  }`}
+                                >
                                   {isEditing && editedDMData ? (
                                     // Edit mode
                                     <div className="space-y-2">
@@ -1364,6 +1527,28 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                                         </div>
                                         <div className="flex items-center gap-1 ml-2">
                                           <button
+                                            onClick={() => updateDecisionMakerQuality(prospect, idx, 'good')}
+                                            className={`p-1 rounded transition-colors ${
+                                              dm.quality === 'good' 
+                                                ? 'text-green-600 bg-green-50' 
+                                                : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                                            }`}
+                                            title="Mark as relevant and accurate"
+                                          >
+                                            <ThumbsUp className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => updateDecisionMakerQuality(prospect, idx, 'poor')}
+                                            className={`p-1 rounded transition-colors ${
+                                              dm.quality === 'poor' 
+                                                ? 'text-red-600 bg-red-50' 
+                                                : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                                            }`}
+                                            title="Mark as incorrect or irrelevant (won't be suggested again)"
+                                          >
+                                            <ThumbsDown className="h-3.5 w-3.5" />
+                                          </button>
+                                          <button
                                             onClick={() => startEditingDM(prospect, idx)}
                                             className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                             title="Edit decision maker"
@@ -1410,13 +1595,20 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                                           </a>
                                         )}
                                         {dm.email && (
-                                          <a
-                                            href={`mailto:${dm.email}`}
-                                            className="flex items-center text-xs text-gray-600 hover:text-gray-800 truncate"
-                                          >
-                                            <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
-                                            <span className="truncate">{dm.email}</span>
-                                          </a>
+                                          <div className="flex items-center gap-2">
+                                            <a
+                                              href={`mailto:${dm.email}`}
+                                              className="flex items-center text-xs text-gray-600 hover:text-gray-800 truncate"
+                                            >
+                                              <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
+                                              <span className="truncate">{dm.email}</span>
+                                            </a>
+                                            {dm.emailSource === 'generated' && (
+                                              <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium flex-shrink-0" title="This email was generated using common patterns, not found in search results">
+                                                likely
+                                              </span>
+                                            )}
+                                          </div>
                                         )}
                                         {dm.phone && (
                                           <a
@@ -1460,8 +1652,9 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                 </tr>
               )}
                 </React.Fragment>
-              );
-            })}
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -1665,7 +1858,8 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           onClose={() => setDetailModalCompany(null)}
           onUpdate={(updated) => {
             onProspectUpdate(updated);
-            setDetailModalCompany(null);
+            // Update the modal's displayed company data so changes are reflected
+            setDetailModalCompany(updated);
           }}
           onDelete={(id) => {
             handleDeleteCompany(id);

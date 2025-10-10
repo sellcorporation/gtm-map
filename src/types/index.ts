@@ -33,8 +33,10 @@ export interface DecisionMaker {
   role: string;
   linkedin?: string;
   email?: string;
+  emailSource?: 'found' | 'generated'; // Whether email was found in results or generated
   phone?: string;
   contactStatus: 'Not Contacted' | 'Attempted' | 'Connected' | 'Responded' | 'Unresponsive';
+  quality?: 'good' | 'poor'; // User feedback on decision maker quality
   notes?: string;
 }
 

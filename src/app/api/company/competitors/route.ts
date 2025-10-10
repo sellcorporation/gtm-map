@@ -5,6 +5,7 @@ import { openai } from '@ai-sdk/openai';
 import { requireAuth } from '@/lib/auth';
 import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
+import { db, companies as companiesTable } from '@/lib/db';
 import type { Company } from '@/types';
 
 const model = openai('gpt-4o');
@@ -237,26 +238,32 @@ Return a JSON array of competitor objects with "name" and optionally "domain".`;
 
             // Only include if ICP score is above threshold (40+)
             if (analysis.icpScore >= 40) {
-              const competitor: Company = {
-                id: Date.now() + processedCount, // Temporary ID
-                name: candidate.name,
-                domain: candidate.domain,
-                source: 'expanded' as const,
-                sourceCustomerDomain: companyDomain,
-                icpScore: analysis.icpScore,
-                confidence: analysis.confidence,
-                status: 'New' as const,
-                rationale: analysis.rationale,
-                evidence: analysis.evidence,
-                decisionMakers: null,
-                quality: null,
-                notes: `Competitor of ${companyName}`,
-                tags: null,
-                relatedCompanyIds: null,
-              };
+              try {
+                // Insert directly into database to get a proper ID
+                const insertedCompetitor = await db.insert(companiesTable).values({
+                  userId: 'demo-user', // TODO: Get from auth context
+                  name: candidate.name,
+                  domain: candidate.domain,
+                  source: 'expanded',
+                  sourceCustomerDomain: companyDomain,
+                  icpScore: analysis.icpScore,
+                  confidence: analysis.confidence,
+                  status: 'New',
+                  rationale: analysis.rationale,
+                  evidence: analysis.evidence,
+                }).returning();
 
-              newCompetitors.push(competitor);
-              sendUpdate(`✅ Added ${candidate.name} (ICP: ${analysis.icpScore}, Confidence: ${analysis.confidence})`, 'success');
+                newCompetitors.push(insertedCompetitor[0]);
+                sendUpdate(`✅ Added ${candidate.name} (ICP: ${analysis.icpScore}, Confidence: ${analysis.confidence})`, 'success');
+              } catch (dbError) {
+                const errorMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
+                // Skip if duplicate domain
+                if (errorMessage.includes('duplicate key') || errorMessage.includes('companies_domain_unique')) {
+                  sendUpdate(`⏭️ ${candidate.domain} already exists, skipping...`);
+                } else {
+                  sendUpdate(`❌ Failed to save ${candidate.name}: ${errorMessage}`);
+                }
+              }
             } else {
               sendUpdate(`⏭️ Skipped ${candidate.name} (ICP Score ${analysis.icpScore} too low)`);
             }

@@ -1,40 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
 import { generateDecisionMakers } from '@/lib/ai';
 import { requireAuth } from '@/lib/auth';
+import { db, companies } from '@/lib/db';
 
 const DecisionMakersRequestSchema = z.object({
   companyId: z.number().int().positive(),
   companyName: z.string().min(1),
   companyDomain: z.string().min(1),
   buyerRoles: z.array(z.string()).min(1),
+  existingDecisionMakers: z.array(z.object({
+    name: z.string(),
+    role: z.string(),
+    quality: z.enum(['good', 'poor']).optional(),
+  })).optional(),
 });
 
 async function generateDecisionMakersHandler(request: NextRequest) {
   try {
     const body = await request.json();
-    const { companyName, companyDomain, buyerRoles } = DecisionMakersRequestSchema.parse(body);
+    const { companyId, companyName, companyDomain, buyerRoles, existingDecisionMakers } = DecisionMakersRequestSchema.parse(body);
     
-    // In mock mode, we don't need to lookup the company from DB
-    // Just generate decision makers using the provided company details
+    // Get the current company from database
+    const company = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .limit(1);
     
-    // Generate decision makers
-    const { decisionMakers, isMock } = await generateDecisionMakers(
+    if (company.length === 0) {
+      return NextResponse.json(
+        { error: 'Company not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Generate decision makers, excluding rejected ones
+    const { decisionMakers: newDecisionMakers, isMock } = await generateDecisionMakers(
       companyName,
       companyDomain,
-      buyerRoles
+      buyerRoles,
+      existingDecisionMakers || []
     );
     
-    // In a real DB setup, we would update the company record here:
-    // await db.update(companies)
-    //   .set({ decisionMakers })
-    //   .where(eq(companies.id, companyId));
+    // Merge with existing decision makers in database
+    const existingDMsInDB = (company[0].decisionMakers as any[]) || [];
+    const mergedDecisionMakers = [...existingDMsInDB, ...newDecisionMakers];
     
-    // For now, the client will handle updating localStorage
+    // Update the company record in database with new decision makers and timestamp
+    await db
+      .update(companies)
+      .set({ 
+        decisionMakers: mergedDecisionMakers,
+        updatedAt: new Date(),
+      })
+      .where(eq(companies.id, companyId));
     
     return NextResponse.json({ 
       success: true, 
-      decisionMakers,
+      decisionMakers: newDecisionMakers,
       mockData: isMock
     });
     
