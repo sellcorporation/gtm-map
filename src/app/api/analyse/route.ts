@@ -192,7 +192,10 @@ async function createClusters(prospects: Company[], icp: ICP) {
     const dominantIndustry = Array.from(industryCounts.entries())
       .sort((a, b) => b[1] - a[1])[0]?.[0] || icp.industries[0];
     
+    const userId = 'demo-user'; // TODO: Get from auth context
+    
     const cluster = await db.insert(clusters).values({
+      userId,
       label,
       criteria: { 
         avgIcpScore: Math.round(avgIcpScore),
