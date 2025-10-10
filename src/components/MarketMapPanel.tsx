@@ -86,7 +86,13 @@ export default function MarketMapPanel({
       return;
     }
 
+    // Read batch size from settings
+    const batchSize = parseInt(localStorage.getItem('gtm-batch-size') || '10');
+    const maxTotalProspects = parseInt(localStorage.getItem('gtm-max-total-prospects') || '100');
+
     setIsGenerating(true);
+    setGenerateProgress([]);
+    setShowGenerateProgress(true);
     
     try {
       toast.info(`Searching for ${batchSize} new high-quality prospects...`);
@@ -96,6 +102,7 @@ export default function MarketMapPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           batchSize,
+          maxTotalProspects,
           icp,
           existingProspects: prospects.map(p => ({ 
             id: p.id, 
@@ -130,18 +137,23 @@ export default function MarketMapPanel({
         }
         
         toast.success(`Successfully added ${data.prospects.length} new prospects!`);
-        setShowGenerateDialog(false);
         
         // Switch to prospects tab to show new results
         setActiveTab('prospects');
       } else {
         toast.info(data.message || 'No new prospects found. Try adjusting your ICP or rating more prospects.');
-        setShowGenerateDialog(false);
       }
+      
+      // Hide progress panel after completion
+      setTimeout(() => {
+        setShowGenerateProgress(false);
+        setGenerateProgress([]);
+      }, 1000);
     } catch (error) {
       console.error('Generate more failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate more prospects';
       toast.error(errorMessage);
+      setShowGenerateProgress(false);
     } finally {
       setIsGenerating(false);
     }
@@ -222,11 +234,12 @@ export default function MarketMapPanel({
           <h2 className="text-xl font-semibold text-gray-900">Market Map</h2>
           <div className="flex space-x-2">
             <button
-              onClick={() => setShowGenerateDialog(true)}
-              className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              onClick={handleGenerateMore}
+              disabled={isGenerating}
+              className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="h-4 w-4 mr-2" />
-              Generate More
+              {isGenerating ? 'Generating...' : 'Generate More'}
             </button>
             <button
               onClick={handleExportCSV}
@@ -246,58 +259,6 @@ export default function MarketMapPanel({
         </div>
       </div>
 
-      {/* Generate More Dialog */}
-      {showGenerateDialog && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-          <div className="relative mx-auto p-6 border w-96 shadow-lg rounded-md bg-white">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Generate More Prospects</h3>
-              <button
-                onClick={() => setShowGenerateDialog(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Batch Size
-              </label>
-              <select
-                value={batchSize}
-                onChange={(e) => setBatchSize(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={10}>10 prospects</option>
-                <option value={50}>50 prospects</option>
-                <option value={100}>100 prospects</option>
-                <option value={500}>500 prospects</option>
-                <option value={1000}>1000 prospects</option>
-              </select>
-              <p className="mt-2 text-xs text-gray-500">
-                The system will use your quality feedback to find similar high-quality prospects.
-              </p>
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowGenerateDialog(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGenerateMore}
-                disabled={isGenerating}
-                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? 'Generating...' : 'Generate'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
@@ -329,7 +290,7 @@ export default function MarketMapPanel({
             icp={icp}
             onStatusUpdate={onStatusUpdate}
             onProspectUpdate={onProspectUpdate}
-            onGenerateMore={() => setShowGenerateDialog(true)}
+            onGenerateMore={handleGenerateMore}
             onMarkAsCustomer={onMarkAsCustomer}
           />
         )}
@@ -347,6 +308,37 @@ export default function MarketMapPanel({
           <strong>Not legal advice:</strong> Data is probabilistic; verify before outreach.
         </p>
       </div>
+
+      {/* Generate More Progress Panel - Compact Left Sidebar */}
+      {showGenerateProgress && (
+        <div className="fixed inset-y-0 left-0 w-80 bg-white shadow-xl border-r border-gray-200 z-40 overflow-hidden flex flex-col">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-3 flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <h3 className="font-medium text-sm">AI Working...</h3>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 bg-gray-50">
+            {generateProgress.map((message, index) => (
+              <div
+                key={index}
+                className="text-xs text-gray-700 bg-white p-2 rounded border border-gray-100 animate-fade-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                {message}
+              </div>
+            ))}
+            {generateProgress.length === 0 && (
+              <div className="text-xs text-gray-500 text-center py-8">
+                Initializing...
+              </div>
+            )}
+          </div>
+          <div className="p-2 bg-blue-50 border-t border-blue-100 text-center">
+            <p className="text-xs text-blue-700 font-medium">
+              ✨ AI finding prospects
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
