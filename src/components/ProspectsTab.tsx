@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
@@ -51,6 +51,15 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   
   // Find competitors state
   const [findingCompetitors, setFindingCompetitors] = useState<Set<number>>(new Set());
+  const [competitorProgress, setCompetitorProgress] = useState<Array<{ message: string; type: 'info' | 'success' | 'error' }>>([]);
+  const progressEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to latest progress message
+  useEffect(() => {
+    if (competitorProgress.length > 0) {
+      progressEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [competitorProgress]);
   
   // ICP Score filter with localStorage persistence
   const [minICPScore, setMinICPScore] = useState<number>(() => {
@@ -509,10 +518,9 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
     // Mark this prospect as having competitors being searched
     setFindingCompetitors(prev => new Set(prev).add(prospect.id));
+    setCompetitorProgress([]); // Clear previous progress
 
     try {
-      toast.info(`Searching for competitors of ${prospect.name}...`);
-
       const response = await fetch('/api/company/competitors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -530,15 +538,60 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to find competitors');
+        throw new Error('Failed to start competitor search');
       }
 
-      const data = await response.json();
+      // Read the streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      if (data.success && data.competitors.length > 0) {
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let finalResult: { success: boolean; competitors: Company[]; message?: string; error?: string } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        // Decode the chunk
+        const chunk = decoder.decode(value, { stream: true });
+        
+        // Parse SSE events (format: "data: {...}\n\n")
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.done) {
+                // Final result
+                finalResult = data;
+              } else if (data.message) {
+                // Progress update
+                setCompetitorProgress(prev => [...prev, { message: data.message, type: data.type || 'info' }]);
+                
+                // Also show as toast for key updates
+                if (data.type === 'success' && data.message.includes('Complete')) {
+                  // Will show final toast after stream completes
+                } else if (data.type === 'error') {
+                  toast.error(data.message);
+                }
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+
+      // Handle final result
+      if (finalResult && finalResult.success && finalResult.competitors.length > 0) {
         // Add new competitors to the list
-        data.competitors.forEach((competitor: Company) => {
+        finalResult.competitors.forEach((competitor: Company) => {
           onProspectUpdate(competitor);
         });
 
@@ -546,18 +599,20 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         const savedData = localStorage.getItem('gtm-data');
         if (savedData) {
           const parsed = JSON.parse(savedData);
-          parsed.prospects = [...(parsed.prospects || []), ...data.competitors];
+          parsed.prospects = [...(parsed.prospects || []), ...finalResult.competitors];
           localStorage.setItem('gtm-data', JSON.stringify(parsed));
         }
 
-        toast.success(`Found and added ${data.competitors.length} competitor(s) of ${prospect.name}!`);
-      } else {
-        toast.info(data.message || `No new competitors found for ${prospect.name}.`);
+        toast.success(`Found and added ${finalResult.competitors.length} competitor(s) of ${prospect.name}!`);
+      } else if (finalResult) {
+        toast.info(finalResult.message || `No new competitors found for ${prospect.name}.`);
       }
+
     } catch (error) {
       console.error('Find competitors error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to find competitors';
       toast.error(errorMessage);
+      setCompetitorProgress(prev => [...prev, { message: `Error: ${errorMessage}`, type: 'error' }]);
     } finally {
       // Remove from loading state
       setFindingCompetitors(prev => {
@@ -677,8 +732,58 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     );
   }
 
+  const getProgressIcon = (type: 'info' | 'success' | 'error') => {
+    if (type === 'success') return '✅';
+    if (type === 'error') return '❌';
+    return '⏳';
+  };
+
   return (
     <>
+      {/* Competitor Search Progress Panel */}
+      {competitorProgress.length > 0 && (
+        <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg shadow-lg relative">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-blue-900 flex items-center">
+              <Search className="h-4 w-4 mr-2 animate-pulse" />
+              Finding Competitors - Live Progress
+            </h3>
+            <button
+              onClick={() => setCompetitorProgress([])}
+              className="text-blue-600 hover:text-blue-800"
+              title="Close progress panel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="space-y-2 max-h-60 overflow-y-auto bg-white p-3 rounded border border-blue-200">
+            {competitorProgress.map((progress, idx) => (
+              <div 
+                key={idx} 
+                className={`text-xs flex items-start animate-fade-in ${
+                  progress.type === 'success' ? 'text-green-700' : 
+                  progress.type === 'error' ? 'text-red-700' : 
+                  'text-blue-700'
+                }`}
+              >
+                <span className="mr-2 flex-shrink-0">{getProgressIcon(progress.type)}</span>
+                <span className="flex-1">{progress.message}</span>
+              </div>
+            ))}
+            <div ref={progressEndRef} />
+            {findingCompetitors.size > 0 && (
+              <div className="text-xs text-blue-600 flex items-center mt-2 pt-2 border-t border-blue-200">
+                <svg className="animate-spin h-3 w-3 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ICP Score Filter */}
       <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
         <div className="flex items-center justify-between mb-3">
