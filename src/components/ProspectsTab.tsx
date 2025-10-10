@@ -587,7 +587,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                   toast.error(data.message);
                 }
               }
-            } catch (e) {
+            } catch {
               // Ignore parse errors for incomplete chunks
             }
           }

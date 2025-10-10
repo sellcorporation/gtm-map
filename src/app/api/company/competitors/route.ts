@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { requireAuth } from '@/lib/auth';
-import { searchCompetitors, searchCompanies, fetchWebsiteContent } from '@/lib/search';
+import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 import type { Company } from '@/types';
 
@@ -67,7 +67,7 @@ async function findCompetitorsHandler(request: NextRequest) {
 
         sendUpdate(`🌐 Running ${searchQueries.length} search queries...`);
 
-        let allSearchResults: Array<{ title: string; snippet: string; url: string }> = [];
+        const allSearchResults: Array<{ title: string; snippet: string; url: string }> = [];
 
         for (let i = 0; i < searchQueries.length; i++) {
           sendUpdate(`📡 Search query ${i + 1}/${searchQueries.length}...`);
@@ -184,14 +184,14 @@ Return a JSON array of competitor objects with "name" and optionally "domain".`;
                       !candidateDomain.includes('linkedin') &&
                       !candidateDomain.includes('facebook') &&
                       !candidateDomain.includes('twitter')) {
-                    domain = candidateDomain;
-                    break;
-                  }
-                } catch (err) {
-                  // Skip invalid URLs
-                }
+                domain = candidateDomain;
+                break;
               }
+            } catch {
+              // Skip invalid URLs
             }
+          }
+        }
 
             if (domain && !existingDomains.has(domain.toLowerCase()) && domain.toLowerCase() !== companyDomain.toLowerCase()) {
               candidates.push({ name: competitor.name, domain });
