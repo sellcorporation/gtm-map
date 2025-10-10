@@ -329,9 +329,19 @@ export default function HomePage() {
 
   const handleStatusUpdate = async (id: number, status: string) => {
     try {
-      // In mock mode, we handle updates client-side only
-      // The backend mock DB doesn't persist between requests
-      // In production with a real DB, this would call the API
+      // Save to database
+      const response = await fetch('/api/company', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          companyId: id, 
+          status: status as Company['status']
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update status in database');
+      }
       
       // Update local state
       setProspects(prev => 
@@ -340,7 +350,7 @@ export default function HomePage() {
         )
       );
 
-      // Update localStorage
+      // Update localStorage as backup
       const updatedProspects = prospects.map(prospect => 
         prospect.id === id ? { ...prospect, status: status as Company['status'] } : prospect
       );
@@ -352,23 +362,13 @@ export default function HomePage() {
 
       toast.success('Status updated successfully');
       
-      // If we had a real database connection, we'd do:
-      // const response = await fetch('/api/status', {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ id, status }),
-      // });
-      // if (!response.ok) {
-      //   throw new Error('Failed to update status');
-      // }
-      
     } catch (error) {
       console.error('Status update error:', error);
       toast.error('Failed to update status');
     }
   };
 
-  const handleProspectUpdate = (updatedProspect: Company) => {
+  const handleProspectUpdate = async (updatedProspect: Company) => {
     // Check if this is a deletion signal (domain starts with __DELETE_)
     if (updatedProspect.domain.startsWith('__DELETE_')) {
       const idToDelete = updatedProspect.id;
@@ -386,7 +386,33 @@ export default function HomePage() {
       return;
     }
 
-    // Check if prospect exists (update) or is new (add)
+    // Check if prospect exists in current state
+    const existingIndex = prospects.findIndex(p => p.id === updatedProspect.id);
+    
+    // If updating an existing prospect, save to database
+    if (existingIndex >= 0) {
+      try {
+        await fetch('/api/company', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyId: updatedProspect.id,
+            name: updatedProspect.name,
+            domain: updatedProspect.domain,
+            status: updatedProspect.status,
+            quality: updatedProspect.quality,
+            notes: updatedProspect.notes,
+            tags: updatedProspect.tags,
+            relatedCompanyIds: updatedProspect.relatedCompanyIds,
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to update prospect in database:', error);
+        // Continue with local update even if database fails
+      }
+    }
+
+    // Update local state
     setProspects(prev => {
       const existingIndex = prev.findIndex(p => p.id === updatedProspect.id);
       
@@ -394,14 +420,14 @@ export default function HomePage() {
         // Update existing prospect
         return prev.map(p => p.id === updatedProspect.id ? updatedProspect : p);
       } else {
-        // Add new prospect
+        // Add new prospect (from import or generation)
         return [...prev, updatedProspect];
       }
     });
 
-    // Update localStorage
-    const existingIndex = prospects.findIndex(p => p.id === updatedProspect.id);
-    const updatedProspects = existingIndex >= 0
+    // Update localStorage as backup
+    const existingIndexLocal = prospects.findIndex(p => p.id === updatedProspect.id);
+    const updatedProspects = existingIndexLocal >= 0
       ? prospects.map(p => p.id === updatedProspect.id ? updatedProspect : p)
       : [...prospects, updatedProspect];
       
