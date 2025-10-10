@@ -302,8 +302,17 @@ async function analyseHandler(request: NextRequest) {
     
     // Analyze each competitor with AI-powered workflow scoring
     const prospectRecords = [];
+    const processedDomains = new Set<string>();
     
     for (const competitor of uniqueCompetitors) {
+      // Skip if we've already processed this domain (handles duplicates from multiple sources)
+      const normalizedDomain = competitor.domain.toLowerCase();
+      if (processedDomains.has(normalizedDomain)) {
+        console.log(`Skipping duplicate domain: ${competitor.domain}`);
+        continue;
+      }
+      processedDomains.add(normalizedDomain);
+      
       try {
         console.log(`Analyzing ${competitor.domain} with AI workflow scoring...`);
         
@@ -334,27 +343,42 @@ async function analyseHandler(request: NextRequest) {
         
         prospectRecords.push(prospect[0]);
       } catch (error) {
-        console.error(`Failed to analyze ${competitor.name}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Failed to analyze ${competitor.name}:`, errorMessage);
+        
+        // Only use fallback if it's NOT a duplicate key error
+        if (errorMessage.includes('duplicate key') || errorMessage.includes('companies_domain_unique')) {
+          console.log(`Domain ${competitor.domain} already exists in database, skipping...`);
+          continue;
+        }
+        
         // Fall back to simple scoring if AI analysis fails
-        const icpScore = await computeICPScore(competitor, icp);
-        const evidence: Evidence[] = competitor.evidenceUrls.map(url => ({
-          url,
-          snippet: `Evidence for ${competitor.name} as competitor`,
-        }));
-        
-        const prospect = await db.insert(companies).values({
-          name: competitor.name,
-          domain: competitor.domain,
-          source: 'expanded',
-          sourceCustomerDomain: customers[0]?.domain,
-          icpScore,
-          confidence: competitor.confidence,
-          status: 'New',
-          rationale: competitor.rationale,
-          evidence,
-        }).returning();
-        
-        prospectRecords.push(prospect[0]);
+        try {
+          const icpScore = await computeICPScore(competitor, icp);
+          const evidence: Evidence[] = competitor.evidenceUrls.map(url => ({
+            url,
+            snippet: `Evidence for ${competitor.name} as competitor`,
+          }));
+          
+          const prospect = await db.insert(companies).values({
+            name: competitor.name,
+            domain: competitor.domain,
+            source: 'expanded',
+            sourceCustomerDomain: customers[0]?.domain,
+            icpScore,
+            confidence: competitor.confidence,
+            status: 'New',
+            rationale: competitor.rationale,
+            evidence,
+          }).returning();
+          
+          prospectRecords.push(prospect[0]);
+          console.log(`${competitor.name}: Fallback scoring - ICP Score ${icpScore}`);
+        } catch (fallbackError) {
+          console.error(`Failed to insert ${competitor.name} even with fallback:`, fallbackError);
+          // Skip this prospect entirely
+          continue;
+        }
       }
     }
     
