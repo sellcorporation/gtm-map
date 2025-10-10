@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Edit2, Save, FileText } from 'lucide-react';
 import type { ICP } from '@/types';
 import { toast } from 'sonner';
@@ -16,6 +16,17 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
   const [isEditing, setIsEditing] = useState(false);
   const [editedICP, setEditedICP] = useState<ICP | null>(icp);
 
+  // Sync editedICP with icp when modal opens
+  useEffect(() => {
+    if (isOpen && icp) {
+      console.log('ICPProfileModal: Modal opened, setting editedICP');
+      setEditedICP(icp);
+      setIsEditing(false); // Reset edit mode when reopening
+    }
+  }, [isOpen, icp]);
+
+  console.log('ICPProfileModal render:', { isOpen, hasICP: !!icp, hasEditedICP: !!editedICP });
+  
   if (!isOpen || !icp || !editedICP) return null;
 
   const handleSave = () => {

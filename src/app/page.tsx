@@ -356,7 +356,10 @@ export default function HomePage() {
           <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
             {extractedICP && (
               <button
-                onClick={() => setShowICPModal(true)}
+                onClick={() => {
+                  console.log('ICP Profile button clicked, extractedICP:', extractedICP);
+                  setShowICPModal(true);
+                }}
                 className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center text-sm sm:text-base"
               >
                 <FileText className="h-4 w-4 mr-1 sm:mr-2" />
