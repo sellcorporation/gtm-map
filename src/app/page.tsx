@@ -45,7 +45,31 @@ export default function HomePage() {
         const validAds = savedAds?.every((ad: Ad) => ad.lines && Array.isArray(ad.lines));
         
         if (savedProspects?.length > 0 && validAds) {
-          setProspects(savedProspects);
+          // Fix duplicate IDs (migration for old data)
+          const seenIds = new Set<number>();
+          const fixedProspects = savedProspects.map((prospect: Company) => {
+            if (seenIds.has(prospect.id)) {
+              // Duplicate ID detected, generate a new unique one
+              const newId = Date.now() + Math.floor(Math.random() * 1000000);
+              console.log(`Fixed duplicate ID ${prospect.id} for ${prospect.name} → ${newId}`);
+              return { ...prospect, id: newId };
+            }
+            seenIds.add(prospect.id);
+            return prospect;
+          });
+          
+          // Save fixed data back to localStorage
+          if (fixedProspects.length !== savedProspects.length || 
+              fixedProspects.some((p: Company, i: number) => p.id !== savedProspects[i].id)) {
+            localStorage.setItem('gtm-data', JSON.stringify({
+              prospects: fixedProspects,
+              clusters: savedClusters,
+              ads: savedAds,
+            }));
+            console.log('Migrated prospects with duplicate IDs');
+          }
+          
+          setProspects(fixedProspects);
           setClusters(savedClusters || []);
           setAds(savedAds || []);
           setHasData(true);
