@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
 import { requireAuth } from '@/lib/auth';
-import { searchCompetitors, fetchWebsiteContent } from '@/lib/search';
+import { searchCompetitors, searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 import type { Company } from '@/types';
+
+const model = openai('gpt-4o');
 
 const CompetitorsRequestSchema = z.object({
   companyName: z.string().min(1),
@@ -22,7 +26,14 @@ const CompetitorsRequestSchema = z.object({
     domain: z.string(),
     name: z.string(),
   })),
-  batchSize: z.number().int().min(1).max(10).default(5),
+  batchSize: z.number().int().min(1).max(15).default(10),
+});
+
+const CompetitorNamesSchema = z.object({
+  competitors: z.array(z.object({
+    name: z.string(),
+    domain: z.string().optional(), // Optional because AI might not always find domain
+  })).max(15),
 });
 
 async function findCompetitorsHandler(request: NextRequest) {
@@ -32,50 +43,155 @@ async function findCompetitorsHandler(request: NextRequest) {
 
     console.log(`Finding competitors for: ${companyName} (${companyDomain})`);
 
-    // Filter out existing domains to avoid duplicates
+    // Filter out existing domains and names to avoid duplicates
     const existingDomains = new Set(existingProspects.map(p => p.domain.toLowerCase()));
+    const existingNames = new Set(existingProspects.map(p => p.name.toLowerCase()));
 
-    // Search for competitors using the company domain and industry
+    // Step 1: Search for competitors using multiple search queries
     const industry = icp.industries[0] || 'business';
-    const searchResults = await searchCompetitors(companyDomain, industry);
+    const searchQueries = [
+      `${companyName} competitors ${industry}`,
+      `alternative to ${companyName} ${industry}`,
+      `${industry} companies like ${companyName}`,
+    ];
 
-    console.log(`Found ${searchResults.length} potential competitors from search`);
+    let allSearchResults: Array<{ title: string; snippet: string; url: string }> = [];
 
-    // Extract domains from URLs and filter out duplicates
-    const candidates = searchResults
-      .map(result => {
-        try {
-          // Extract domain from URL
-          const urlObj = new URL(result.url);
-          const domain = urlObj.hostname.replace('www.', '');
+    for (const query of searchQueries) {
+      const results = await searchCompanies(query);
+      allSearchResults.push(...results);
+    }
 
-          // Extract company name from title (take first part before separator)
-          const name = result.title.split(/[-|–—]/)[0].trim();
+    console.log(`Found ${allSearchResults.length} search results from ${searchQueries.length} queries`);
 
-          return { name, domain, url: result.url };
-        } catch (error) {
-          console.error('Failed to parse search result:', error);
-          return null;
+    // Step 2: Use AI to extract actual competitor company names from search results
+    const searchResultsText = allSearchResults
+      .map((result, index) => `${index + 1}. ${result.title}\n   ${result.snippet}`)
+      .join('\n\n');
+
+    let competitorNames: Array<{ name: string; domain?: string }> = [];
+
+    if (process.env.OPENAI_API_KEY && searchResultsText.length > 100) {
+      try {
+        const prompt = `You are analyzing search results to find competitors of "${companyName}" (${companyDomain}) in the ${industry} industry.
+
+From these search results, extract ONLY the names of actual competitor companies (not the websites publishing articles about competitors).
+
+SEARCH RESULTS:
+${searchResultsText.slice(0, 4000)}
+
+Extract up to 15 ACTUAL COMPETITOR COMPANIES. For each:
+- Company Name: The actual competitor's name (not "RocketReach", "LinkedIn", "Crunchbase", etc.)
+- Domain (if mentioned): Their actual website domain
+
+EXCLUDE:
+- Data aggregator sites (RocketReach, LinkedIn, Crunchbase, ZoomInfo, etc.)
+- News/blog sites
+- Social media platforms
+- The original company itself (${companyName})
+
+Return a JSON array of competitor objects with "name" and optionally "domain".`;
+
+        const { object } = await generateObject({
+          model,
+          schema: CompetitorNamesSchema,
+          prompt,
+          temperature: 0.3,
+        });
+
+        competitorNames = object.competitors;
+        console.log(`AI extracted ${competitorNames.length} competitor names:`, competitorNames.map(c => c.name).join(', '));
+      } catch (error) {
+        console.error('AI extraction failed:', error);
+      }
+    }
+
+    // Fallback: If AI didn't find anything, try basic extraction
+    if (competitorNames.length === 0) {
+      console.log('Falling back to basic name extraction from titles');
+      const seen = new Set<string>();
+      competitorNames = allSearchResults
+        .map(result => {
+          const name = result.title.split(/[-|–—:]/)[0].trim();
+          return { name };
+        })
+        .filter(c => {
+          const lowerName = c.name.toLowerCase();
+          if (seen.has(lowerName)) return false;
+          seen.add(lowerName);
+          return !lowerName.includes('competitor') &&
+                 !lowerName.includes('alternative') &&
+                 !lowerName.includes('vs') &&
+                 lowerName.length > 3;
+        })
+        .slice(0, 15);
+    }
+
+    console.log(`Processing ${competitorNames.length} potential competitors`);
+
+    // Step 3: For each competitor name, find their actual website domain
+    const candidates: Array<{ name: string; domain: string }> = [];
+
+    for (const competitor of competitorNames) {
+      if (candidates.length >= batchSize * 2) break;
+
+      // Skip if we already have this company
+      if (existingNames.has(competitor.name.toLowerCase())) {
+        console.log(`Skipping ${competitor.name} - already in list`);
+        continue;
+      }
+
+      try {
+        let domain = competitor.domain;
+
+        // If AI didn't provide domain, search for it
+        if (!domain) {
+          const domainSearchResults = await searchCompanies(`${competitor.name} official website`);
+          
+          // Extract domain from first result that looks like a company website
+          for (const result of domainSearchResults.slice(0, 3)) {
+            try {
+              const urlObj = new URL(result.url);
+              const candidateDomain = urlObj.hostname.replace('www.', '');
+              
+              // Filter out known aggregator/social domains
+              const excludeDomains = ['linkedin.com', 'facebook.com', 'twitter.com', 'crunchbase.com', 
+                                     'rocketreach.co', 'zoominfo.com', 'bloomberg.com', 'wikipedia.org',
+                                     'indeed.com', 'glassdoor.com', 'yelp.com'];
+              
+              if (!excludeDomains.includes(candidateDomain) && 
+                  !candidateDomain.includes('linkedin') &&
+                  !candidateDomain.includes('facebook') &&
+                  !candidateDomain.includes('twitter')) {
+                domain = candidateDomain;
+                break;
+              }
+            } catch (err) {
+              // Skip invalid URLs
+            }
+          }
         }
-      })
-      .filter((candidate): candidate is { name: string; domain: string; url: string } =>
-        candidate !== null &&
-        candidate.domain.toLowerCase() !== companyDomain.toLowerCase() && // Exclude the company itself
-        !existingDomains.has(candidate.domain.toLowerCase())
-      )
-      .slice(0, Math.min(batchSize * 2, 10)); // Get more candidates than needed
 
-    console.log(`Found ${candidates.length} unique candidate domains (excluding original company and existing prospects)`);
+        if (domain && !existingDomains.has(domain.toLowerCase()) && domain.toLowerCase() !== companyDomain.toLowerCase()) {
+          candidates.push({ name: competitor.name, domain });
+          console.log(`✓ Found domain for ${competitor.name}: ${domain}`);
+        }
+      } catch (error) {
+        console.error(`Failed to find domain for ${competitor.name}:`, error);
+      }
+    }
+
+    console.log(`Found ${candidates.length} unique competitor domains`);
 
     if (candidates.length === 0) {
       return NextResponse.json({
         success: true,
         competitors: [],
-        message: `No new competitors found for ${companyName}. They may already be in your list.`,
+        message: `No new competitors found for ${companyName}. Try a different company or refine your search.`,
       });
     }
 
-    // Analyze each candidate
+    // Step 4: Analyze each candidate against ICP
     const newCompetitors: Company[] = [];
     let processedCount = 0;
 

@@ -525,7 +525,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
             domain: p.domain,
             name: p.name,
           })),
-          batchSize: 5, // Find up to 5 competitors
+          batchSize: 10, // Find up to 10 competitors
         }),
       });
 
