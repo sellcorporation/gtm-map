@@ -790,6 +790,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         
         newProspect = {
           id: Date.now(), // Temporary ID
+          userId: 'demo-user',
           name: manualProspectData.name,
           domain: manualProspectData.domain,
           source: 'expanded' as const,
@@ -804,6 +805,8 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           notes: 'Manually added prospect',
           tags: null,
           relatedCompanyIds: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
         
         toast.success('Prospect analyzed and added!');
@@ -811,6 +814,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         // Add manually without AI analysis
         newProspect = {
           id: Date.now(), // Temporary ID
+          userId: 'demo-user',
           name: manualProspectData.name,
           domain: manualProspectData.domain,
           source: 'expanded' as const,
@@ -825,6 +829,8 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           notes: 'Manually added prospect',
           tags: null,
           relatedCompanyIds: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
         
         toast.success('Prospect added successfully!');
