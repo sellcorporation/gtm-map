@@ -755,6 +755,7 @@ export default function HomePage() {
               onStatusUpdate={handleStatusUpdate}
               onProspectUpdate={handleProspectUpdate}
               onMarkAsCustomer={handleMarkAsCustomer}
+              onUsageUpdate={loadUsageData}
             />
           </div>
         )}

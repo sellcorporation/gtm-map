@@ -15,6 +15,7 @@ interface MarketMapPanelProps {
   onStatusUpdate: (id: number, status: string) => Promise<void>;
   onProspectUpdate: (updatedProspect: Company) => void;
   onMarkAsCustomer?: (prospect: Company) => void;
+  onUsageUpdate?: () => Promise<void>;
 }
 
 export default function MarketMapPanel({ 
@@ -24,7 +25,8 @@ export default function MarketMapPanel({
   icp, 
   onStatusUpdate,
   onProspectUpdate,
-  onMarkAsCustomer
+  onMarkAsCustomer,
+  onUsageUpdate
 }: MarketMapPanelProps) {
   const [activeTab, setActiveTab] = useState<'prospects' | 'clusters' | 'ads'>('prospects');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -116,6 +118,23 @@ export default function MarketMapPanel({
         }),
       });
 
+      // Handle 402 Payment Required (limit reached)
+      if (response.status === 402) {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'You have reached your AI generation limit', { duration: 8000 });
+        
+        // Refresh usage to show updated state
+        if (onUsageUpdate) {
+          await onUsageUpdate();
+        }
+        
+        // Redirect to billing after 2 seconds
+        setTimeout(() => {
+          window.location.href = '/settings/billing';
+        }, 2000);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -158,6 +177,16 @@ export default function MarketMapPanel({
 
                 toast.success(`Successfully added ${data.result.prospects.length} new prospects!`);
                 setActiveTab('prospects');
+
+                // Update usage badge
+                if (onUsageUpdate) {
+                  await onUsageUpdate();
+                }
+
+                // Show usage warning if present
+                if (data.result.warning) {
+                  toast.warning(data.result.warning.message, { duration: 5000 });
+                }
               } else {
                 toast.info(data.result.message || 'No new prospects found. Try adjusting your ICP or rating more prospects.');
               }
