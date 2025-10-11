@@ -17,7 +17,9 @@ import { supabaseAdmin } from '@/lib/supabase/service';
  * 5. Redirect to Stripe Checkout
  */
 export async function POST(request: NextRequest) {
-  const cookieStore = cookies();
+  console.log('[CHECKOUT] Starting checkout process');
+  
+  const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -42,27 +44,44 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
+    console.error('[CHECKOUT] Auth error:', authError);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  console.log('[CHECKOUT] User authenticated:', user.email);
 
   // 2) Get plan from request
   const { plan } = await request.json();
 
   if (!plan || !['starter', 'pro'].includes(plan)) {
+    console.error('[CHECKOUT] Invalid plan:', plan);
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 
+  console.log('[CHECKOUT] Plan requested:', plan);
+
   try {
     // 3) Get or create Stripe customer
-    const { data: sub } = await supabase
+    console.log('[CHECKOUT] Fetching user subscription...');
+    const { data: sub, error: subError } = await supabase
       .from('user_subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
       .single();
 
+    if (subError) {
+      console.error('[CHECKOUT] Failed to fetch subscription:', subError);
+      return NextResponse.json(
+        { error: 'Failed to fetch subscription data' },
+        { status: 500 }
+      );
+    }
+
     let customerId = sub?.stripe_customer_id;
+    console.log('[CHECKOUT] Existing customer ID:', customerId || 'none');
 
     if (!customerId) {
+      console.log('[CHECKOUT] Creating new Stripe customer...');
       // Create Stripe customer
       const customer = await stripe.customers.create({
         email: user.email,
@@ -71,6 +90,7 @@ export async function POST(request: NextRequest) {
         },
       });
       customerId = customer.id;
+      console.log('[CHECKOUT] Created Stripe customer:', customerId);
 
       // Save customer ID (using service role to bypass RLS)
       const { error: updateError } = await supabaseAdmin
@@ -85,9 +105,11 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         );
       }
+      console.log('[CHECKOUT] Saved customer ID to database');
     }
 
     // 4) Get price ID for plan
+    console.log('[CHECKOUT] Fetching price for plan:', plan);
     const { data: priceData, error: priceError } = await supabase
       .from('plan_prices')
       .select('stripe_price_id')
@@ -103,7 +125,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[CHECKOUT] Found price ID:', priceData.stripe_price_id);
+
     // 5) Create Stripe Checkout session
+    console.log('[CHECKOUT] Creating Stripe checkout session...');
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -123,11 +148,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log('[CHECKOUT] Checkout session created:', session.id);
+    console.log('[CHECKOUT] Checkout URL:', session.url);
+
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('[CHECKOUT] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { error: 'Failed to create checkout session', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

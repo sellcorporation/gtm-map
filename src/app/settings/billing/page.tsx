@@ -48,18 +48,37 @@ export default function BillingPage() {
   async function handleUpgrade(plan: 'starter' | 'pro') {
     setUpgrading(true);
     try {
+      console.log('[BILLING] Calling checkout API for plan:', plan);
       const response = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan }),
       });
 
-      const { url } = await response.json();
-      if (url) {
-        window.location.href = url;
+      console.log('[BILLING] Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('[BILLING] Checkout failed:', errorData);
+        alert(`Checkout failed: ${errorData.error || 'Unknown error'}`);
+        setUpgrading(false);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('[BILLING] Response data:', data);
+      
+      if (data.url) {
+        console.log('[BILLING] Redirecting to Stripe:', data.url);
+        window.location.href = data.url;
+      } else {
+        console.error('[BILLING] No URL in response');
+        alert('Failed to create checkout session');
+        setUpgrading(false);
       }
     } catch (error) {
-      console.error('Error creating checkout:', error);
+      console.error('[BILLING] Error creating checkout:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUpgrading(false);
     }
   }
