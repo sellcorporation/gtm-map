@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { generateDecisionMakers } from '@/lib/ai';
 import { db, companies } from '@/lib/db';
+import { getEffectiveEntitlements, incrementUsage } from '@/lib/billing/entitlements';
 
 const DecisionMakersRequestSchema = z.object({
   companyId: z.number().int().positive(),
@@ -18,6 +21,86 @@ const DecisionMakersRequestSchema = z.object({
 
 async function generateDecisionMakersHandler(request: NextRequest) {
   try {
+    // ========== AUTH & BILLING ENFORCEMENT ==========
+    console.log('[DECISION-MAKERS] Checking authentication and billing...');
+    
+    // 1. Authenticate user
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[DECISION-MAKERS] Not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[DECISION-MAKERS] User authenticated:', user.email);
+
+    // 2. Check entitlements
+    const { effectivePlan, isTrialing, allowed, used, thresholds } = 
+      await getEffectiveEntitlements(user.id);
+
+    console.log('[DECISION-MAKERS] Entitlements:', {
+      plan: effectivePlan,
+      trial: isTrialing,
+      used,
+      allowed,
+      thresholds,
+    });
+
+    // 3. Check if at hard limit (BLOCK)
+    if (used >= thresholds.blockAt) {
+      console.log('[DECISION-MAKERS] BLOCKED: User at limit');
+      const upgradePlan = effectivePlan === 'free' || isTrialing ? 'starter' : 'pro';
+      return NextResponse.json({
+        error: 'Limit reached',
+        message: `You've reached your ${isTrialing ? 'trial' : effectivePlan} limit of ${allowed} AI generations this month.`,
+        code: 'LIMIT_REACHED',
+        usage: { used, allowed },
+        cta: {
+          type: 'upgrade',
+          plan: upgradePlan,
+          url: '/settings/billing',
+        },
+      }, { status: 402 }); // 402 Payment Required
+    }
+
+    // 4. Check if near limit (WARNING)
+    const shouldWarn = used >= thresholds.warnAt;
+    const remaining = allowed - used;
+
+    if (shouldWarn) {
+      console.log(`[DECISION-MAKERS] WARNING: User at ${used}/${allowed} (${remaining} left)`);
+    }
+
+    // 5. Increment usage (atomic)
+    console.log('[DECISION-MAKERS] Incrementing usage...');
+    try {
+      await incrementUsage(user.id, isTrialing);
+      console.log('[DECISION-MAKERS] Usage incremented successfully');
+    } catch (usageError) {
+      console.error('[DECISION-MAKERS] Failed to increment usage:', usageError);
+      return NextResponse.json(
+        { error: 'Failed to track usage' },
+        { status: 500 }
+      );
+    }
+
+    // ========== PROCEED WITH GENERATION ==========
     const body = await request.json();
     const { companyId, companyName, companyDomain, buyerRoles, existingDecisionMakers } = DecisionMakersRequestSchema.parse(body);
     
@@ -69,7 +152,17 @@ async function generateDecisionMakersHandler(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       decisionMakers: newDecisionMakers,
-      mockData: isMock
+      mockData: isMock,
+      usage: { 
+        used: used + 1, 
+        allowed,
+        plan: effectivePlan,
+        isTrialing,
+      },
+      warning: shouldWarn ? {
+        message: `You have ${remaining - 1} AI generations left this month.`,
+        remaining: remaining - 1,
+      } : undefined,
     });
     
   } catch (error) {
