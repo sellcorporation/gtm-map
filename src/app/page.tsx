@@ -8,6 +8,7 @@ import ICPReviewPanel from '@/components/ICPReviewPanel';
 import ICPProfileModal from '@/components/ICPProfileModal';
 import SettingsModal from '@/components/SettingsModal';
 import MarketMapPanel from '@/components/MarketMapPanel';
+import UserMenu from '@/components/UserMenu';
 import type { Company, Cluster, Ad, Customer, ICP } from '@/types';
 
 export default function HomePage() {
@@ -503,7 +504,8 @@ export default function HomePage() {
               AI-powered competitor expansion CRM for B2B teams
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <UserMenu />
             {extractedICP && (
               <button
                 onClick={() => {
