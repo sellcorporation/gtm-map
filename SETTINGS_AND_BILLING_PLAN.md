@@ -311,7 +311,7 @@ CREATE POLICY no_user_access ON stripe_events
 | Top-Up | Price | Notes |
 |--------|-------|-------|
 | +50 AI Generations | £25 | Emergency burst capacity |
-| +100 AI Generations | £45 | Optional larger pack |
+| +100 AI Generations | £45 | Larger pack |
 
 **Top-Up Rules**:
 - ✅ Available to Starter/Pro users only
@@ -326,13 +326,20 @@ CREATE POLICY no_user_access ON stripe_events
 
 ### **Stripe Setup (SKUs)**
 **Prices to Create in Stripe Dashboard**:
+
+**Monthly Plans**:
 1. `starter_monthly` → £29/mo (recurring, monthly)
 2. `pro_monthly` → £99/mo (recurring, monthly)
-3. `topup_50` → £25 (one-time, payment mode)
-4. `topup_100` → £45 (one-time, payment mode) - optional
+
+**Annual Plans** (2 months free = 17% discount):
+3. `starter_yearly` → £290/year (recurring, yearly) - saves £58 vs monthly
+4. `pro_yearly` → £990/year (recurring, yearly) - saves £198 vs monthly
+
+**Top-Ups**:
+5. `topup_50` → £25 (one-time, payment mode)
+6. `topup_100` → £45 (one-time, payment mode)
 
 **Future (Out of Scope for MVP)**:
-- Annual plans (e.g., Starter £290/year = 2 months free)
 - Enterprise tier (custom pricing)
 - API access (flag exists but disabled)
 
@@ -568,12 +575,12 @@ INSERT INTO subscription_plans (id, name, max_prospects, max_clusters, max_ai_ge
 -- Note: includes_api_access = false for all plans (MVP) - ready to flip later
 
 -- 9. Seed plan prices (you'll replace stripe_price_id after creating in Stripe Dashboard)
--- For now, use placeholder 'price_starter_monthly' etc., then update after Stripe setup
+-- Annual = 10 months price (2 months free = 17% discount)
 INSERT INTO plan_prices (plan_id, cadence, stripe_price_id, amount, currency) VALUES
 ('starter', 'monthly', 'price_starter_monthly_placeholder', 2900, 'gbp'),
-('starter', 'yearly', 'price_starter_yearly_placeholder', 29000, 'gbp'),
+('starter', 'yearly', 'price_starter_yearly_placeholder', 29000, 'gbp'),  -- £290 (saves £58)
 ('pro', 'monthly', 'price_pro_monthly_placeholder', 9900, 'gbp'),
-('pro', 'yearly', 'price_pro_yearly_placeholder', 99000, 'gbp');
+('pro', 'yearly', 'price_pro_yearly_placeholder', 99000, 'gbp');           -- £990 (saves £198)
 
 -- NOTE: After creating products/prices in Stripe, run:
 -- UPDATE plan_prices SET stripe_price_id = 'price_ACTUAL_ID_FROM_STRIPE' WHERE stripe_price_id = 'price_starter_monthly_placeholder';
@@ -1275,7 +1282,7 @@ Ship when **all** of these pass:
 
 ### **Top-Ups**
 - [ ] Starter/Pro users can purchase +50 for £25
-- [ ] Starter/Pro users can purchase +100 for £45 (optional)
+- [ ] Starter/Pro users can purchase +100 for £45
 - [ ] Top-ups not available during trial
 - [ ] Top-up added to allowance immediately after payment
 - [ ] Top-ups expire at period end (no carryover)
@@ -1304,36 +1311,37 @@ Ship when **all** of these pass:
 Before implementation, answer these:
 
 1. **Pricing Validation**  
-   - Are $29/$99 the right price points for your market?
-   - Should we offer annual discounts (e.g., 2 months free)?
+   - Are $29/$99 the right price points for your market? I believe so. With Stripe, it's easy to update those.
+   - Should we offer annual discounts (e.g., 2 months free)? Yes.
 
 2. **Free Trial**  
    - Should paid plans include a 14-day free trial?
-   - Or let users start on Free and upgrade when ready?
-
-3. **Overage Handling**  
-   - If Starter user hits 100 AI generations mid-month, what happens?
-     - **Option A**: Hard block + upgrade prompt (recommended for MVP)
-     - **Option B**: Allow overage, charge per-unit ($1 per 10 generations)
-   - If Pro user exceeds 500 AI generations/mo?
-     - **Option A**: Soft cap, no blocking (recommended)
-     - **Option B**: Charge for overages
+   - Let users start on Free and upgrade when ready. The free 14 day free trial acts as Pro plan, but with limited generations.
 
 4. **Grandfather Existing Users**  
-   - Should current users (you) be grandfathered into a special plan?
-   - Or start everyone on Free and let them upgrade?
+   - Start everyone on Free and let them upgrade.
 
 5. **Internationalization**  
-   - Multi-currency support (USD, EUR, GBP)?
-   - Or USD-only for MVP?
+   - GBP-only for MVP.
+    - Multi-currency is handleded by Stripe.
+   -Show GBP everywhere in-app. Add a one-liner: “Billed in GBP. Your bank may apply conversion.”
+   - Stripe Checkout handles international cards just fine. The customer’s bank converts to GBP; you get paid in GBP.
+   - Enable Stripe Tax so VAT/GST is calculated correctly per country at checkout.
+   - Set locale: 'auto' on Checkout to localise the language, not the price.
+   - MVP: Standardise on GBP prices; don’t use IP for currency. Let Stripe handle international cards and tax.
 
 6. **Refund Policy**  
-   - Allow downgrades with prorated refunds?
-   - Or downgrades take effect at period end?
+   - Option A — Cleanest MVP (recommend)
+-- “Downgrades/cancellations take effect at the end of the current billing period. No prorated refunds for partial months.”
+- In Stripe Portal: enable Cancel subscription and set cancel at period end. 
+Stripe Docs
+- In your API for upgrades: set proration_behavior='always_invoice' so upgrades charge immediately and fairly. Downgrades produce credits that get applied at next renewal; you don’t refund mid-cycle. 
+Stripe Docs
+- Refunds: discretionary (fraud/accidental charge) via Dashboard. 
+Stripe Docs
 
 7. **Enterprise Plan**  
-   - "Contact Sales" or immediate checkout?
-   - MVP: Just show "Coming Soon" badge?
+   - MVP: Just show "Coming Soon" badge.
 
 ---
 
@@ -1415,13 +1423,20 @@ Before implementation, answer these:
 
 All specifications confirmed by user:
 
-1. **Pricing**: £29 (Starter), £99 (Pro), GBP-only
-2. **Trial**: 14 days, 10 AI generations, Pro features, card-less, auto-downgrade
-3. **Top-Ups**: +50 for £25, +100 for £45 (optional), expire at period end
+1. **Pricing**: £29/mo (Starter), £99/mo (Pro), GBP-only
+   - Annual: £290/year (Starter), £990/year (Pro) - saves 2 months (17% discount)
+2. **Trial**: 14 days, 10 AI generations, Pro features, card-less, auto-downgrade to Free
+3. **Top-Ups**: +50 for £25, +100 for £45, expire at period end (Starter/Pro only)
 4. **Overage**: Hard block at limit with CTA (80% warning at limit * 0.8)
-5. **Currency**: GBP (UK-first market), Stripe Tax enabled
-6. **No API Access**: Flag ready, set to `false` for all plans (MVP)
-7. **Notifications**: Toggles only (storage), no email service yet
+5. **Currency**: GBP (UK-first), Stripe Tax enabled, `locale: 'auto'` for language
+   - Display: "Billed in GBP. Your bank may apply conversion."
+   - International cards work fine, Stripe handles conversion
+6. **Refund Policy**: Downgrades/cancellations at period end, no prorated refunds
+   - Upgrades: `proration_behavior='always_invoice'` (immediate charge)
+   - Stripe Customer Portal: "Cancel at period end" enabled
+7. **No API Access**: Flag ready, set to `false` for all plans (MVP)
+8. **Notifications**: Toggles only (storage), no email service yet
+9. **Enterprise**: "Coming Soon" badge (not implemented)
 
 **Economic Nudges**:
 - Starter: 50 AI gens/mo (£29)
@@ -1434,6 +1449,4 @@ All specifications confirmed by user:
 ## 🚀 **READY TO BUILD**
 
 All specifications locked, architecture validated, economics designed.
-
-**Next**: Implement Phases 0-6 (16-22 hours)
 
