@@ -307,22 +307,19 @@ CREATE POLICY no_user_access ON stripe_events
 - **Expiry**: Auto-downgrade to Free plan
 - **Rationale**: Low-friction onboarding; users experience Pro before deciding
 
-### **Top-Ups (AI Generation Add-Ons)**
-| Top-Up | Price | Notes |
-|--------|-------|-------|
-| +50 AI Generations | £25 | Emergency burst capacity |
-| +100 AI Generations | £45 | Larger pack |
+### **No Top-Ups (MVP Decision)**
+**Removed for simplicity**. Users who hit limits are encouraged to upgrade instead.
 
-**Top-Up Rules**:
-- ✅ Available to Starter/Pro users only
-- ✅ Expires at period end (no carryover)
-- ❌ Not available during trial
-- 💡 **Economics**: Buying 3×£25 = £75 → cheaper to upgrade to Pro (£99)
+**Enforcement & CTAs**:
+- **Starter (50 gens/mo)**: Warn at 48/50, block at 50/50 → **"Upgrade to Pro"**
+- **Pro (200 gens/mo)**: Warn at 190/200, block at 200/200
+- **Trial (10 gens)**: Warn at 8/10, block at 10/10 → **"Upgrade to Starter or Pro"**
 
 **Copy for In-Product CTAs**:
-- **80% Warning**: "You've used 40/50 AI generations this month."
-- **Block State (Starter)**: "Limit reached. Add +50 for £25 or upgrade to Pro (200/mo)."
-- **After Top-Up**: "+50 AI generations added. You now have 50 available."
+- **Warning (Starter)**: "You've used 48/50 AI generations this month. Upgrade to Pro (200/mo) to keep going."
+- **Block State (Starter)**: "You've reached 50/50 this month on Starter. Upgrade to Pro (200/mo) to continue immediately."
+- **Warning (Pro)**: "You've used 190/200 AI generations. You're on the highest plan!"
+- **Block State (Pro)**: "You've used all 200 AI generations this month. Resets on [date]."
 
 ### **Stripe Setup (SKUs)**
 **Prices to Create in Stripe Dashboard**:
@@ -335,11 +332,8 @@ CREATE POLICY no_user_access ON stripe_events
 3. `starter_yearly` → £290/year (recurring, yearly) - saves £58 vs monthly
 4. `pro_yearly` → £990/year (recurring, yearly) - saves £198 vs monthly
 
-**Top-Ups**:
-5. `topup_50` → £25 (one-time, payment mode)
-6. `topup_100` → £45 (one-time, payment mode)
-
 **Future (Out of Scope for MVP)**:
+- Top-ups (removed for MVP simplicity - revisit if demanded)
 - Enterprise tier (custom pricing)
 - API access (flag exists but disabled)
 
@@ -522,23 +516,7 @@ ALTER TABLE stripe_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY no_user_access ON stripe_events
   FOR SELECT USING (false);
 
--- 7a. Create AI top-ups table (for one-time generation purchases)
-CREATE TABLE ai_topups (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  period_start date NOT NULL,                   -- Month bucket (e.g., '2025-10-01')
-  quantity integer NOT NULL,                    -- 50 or 100
-  stripe_invoice_id text,                       -- Filled by webhook
-  created_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE ai_topups ENABLE ROW LEVEL SECURITY;
-CREATE POLICY own_topups_read ON ai_topups
-  FOR SELECT USING (user_id = auth.uid());
-
-CREATE INDEX ai_topups_user_period_idx ON ai_topups (user_id, period_start);
-
--- 7b. Create trial usage table (separate from regular usage for card-less trial)
+-- 7a. Create trial usage table (separate from regular usage for card-less trial)
 CREATE TABLE trial_usage (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   ai_generations_used integer NOT NULL DEFAULT 0,
@@ -551,18 +529,12 @@ ALTER TABLE trial_usage ENABLE ROW LEVEL SECURITY;
 CREATE POLICY own_trial_read ON trial_usage
   FOR SELECT USING (user_id = auth.uid());
 
--- 7c. Create view for total AI allowance (plan + top-ups)
+-- 7b. Create view for AI allowance (plan limit only - no top-ups in MVP)
 CREATE VIEW ai_allowance AS
 SELECT
   u.user_id,
   date_trunc('month', now())::date as period_start,
-  p.max_ai_generations_per_month +
-    COALESCE((
-      SELECT sum(quantity)
-      FROM ai_topups t
-      WHERE t.user_id = u.user_id
-        AND t.period_start = date_trunc('month', now())::date
-    ), 0) as allowed
+  p.max_ai_generations_per_month as allowed
 FROM user_subscriptions u
 JOIN subscription_plans p ON p.id = u.plan_id;
 
@@ -715,7 +687,7 @@ async function checkLimitForPlan(
   isTrialing: boolean
 ): Promise<any> {
   if (metric === 'ai_generations') {
-    // Use ai_allowance view (plan + top-ups)
+    // Use ai_allowance view (plan limit only)
     const { data: allowance } = await supabaseAdmin
       .from('ai_allowance')
       .select('allowed')
@@ -736,14 +708,20 @@ async function checkLimitForPlan(
     const used = counter?.used || 0;
     const remaining = limit - used;
     const allowed = remaining > 0;
-    const warningAt80 = used >= limit * 0.8;
     
-    // Generate upgrade CTA if blocked
+    // Warning thresholds (2 away from limit for simplicity)
+    const warnThreshold = Math.max(0, limit - 2);
+    const warningAt80 = used >= warnThreshold;
+    
+    // Generate upgrade CTA if blocked or near limit
     let upgradeCTA;
-    if (!allowed && planId === 'starter') {
-      upgradeCTA = { topup50: '£25', topup100: '£45', upgradePro: '£99/mo' };
-    } else if (!allowed && planId === 'free') {
-      upgradeCTA = { upgradePro: '£99/mo' };
+    if (!allowed || warningAt80) {
+      if (planId === 'starter') {
+        upgradeCTA = { upgradePro: '£99/mo (200 AI gens)' };
+      } else if (planId === 'free') {
+        upgradeCTA = { upgradeStarter: '£29/mo (50 gens)', upgradePro: '£99/mo (200 gens)' };
+      }
+      // Pro has no upgrade path (highest plan)
     }
     
     return { allowed, limit, used, remaining, isTrialing, warningAt80, upgradeCTA };
@@ -824,42 +802,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 **Webhook Events to Handle** (Critical):
-- `checkout.session.completed` → Handle subscriptions OR top-ups (check mode)
-  - mode='subscription' → Create/update Stripe customer, activate subscription
-  - mode='payment' → Insert into `ai_topups` with quantity (50 or 100)
+- `checkout.session.completed` → Create/update Stripe customer, activate subscription
+  - mode='subscription' only (no one-time payments in MVP)
+  - Extract `priceId` from line items, map to `plan_id` via `plan_prices` table
+  - Upsert `user_subscriptions` with real Stripe IDs
 - `customer.subscription.updated` → Update plan_id, status, period dates
 - `customer.subscription.deleted` → Set plan_id='free', status='canceled', canceled_at=now()
 - `invoice.paid` → Record in billing_transactions
 - `invoice.payment_failed` → Update status='past_due', send alert
 
-**Top-Up Webhook Handler**:
-```typescript
-// In webhook handler for checkout.session.completed
-if (session.mode === 'payment') {
-  // This is a top-up purchase
-  const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
-  const priceId = lineItems.data[0].price?.id;
-  
-  // Map price ID to quantity
-  const quantityMap = {
-    'topup_50_price_id': 50,
-    'topup_100_price_id': 100
-  };
-  
-  const quantity = quantityMap[priceId];
-  const periodStart = new Date();
-  periodStart.setUTCDate(1); // First of month
-  periodStart.setUTCHours(0, 0, 0, 0);
-  
-  // Insert top-up
-  await supabaseAdmin.from('ai_topups').insert({
-    user_id: session.metadata.user_id,
-    period_start: periodStart.toISOString().split('T')[0],
-    quantity,
-    stripe_invoice_id: session.invoice
-  });
-}
-```
+**Note**: No top-up handling needed for MVP. All checkout sessions are `mode='subscription'`.
 
 **Webhook Security** (Must-Have):
 ```typescript
@@ -1280,14 +1232,11 @@ Ship when **all** of these pass:
 - [ ] Limits read from `subscription_plans` (no hardcoded values)
 - [ ] 80% warning shown (e.g., 40/50 for Starter)
 
-### **Top-Ups**
-- [ ] Starter/Pro users can purchase +50 for £25
-- [ ] Starter/Pro users can purchase +100 for £45
-- [ ] Top-ups not available during trial
-- [ ] Top-up added to allowance immediately after payment
-- [ ] Top-ups expire at period end (no carryover)
-- [ ] Webhook inserts top-up into `ai_topups` table
-- [ ] `ai_allowance` view correctly sums plan + top-ups
+### **No Top-Ups (Removed for MVP)**
+- [ ] Top-up functionality removed from codebase
+- [ ] No `ai_topups` table or references
+- [ ] `ai_allowance` view uses plan limits only
+- [ ] All CTAs show "Upgrade to Pro" (no top-up options)
 
 ### **Security**
 - [ ] Webhook signatures verified (test with Stripe CLI)
@@ -1426,8 +1375,11 @@ All specifications confirmed by user:
 1. **Pricing**: £29/mo (Starter), £99/mo (Pro), GBP-only
    - Annual: £290/year (Starter), £990/year (Pro) - saves 2 months (17% discount)
 2. **Trial**: 14 days, 10 AI generations, Pro features, card-less, auto-downgrade to Free
-3. **Top-Ups**: +50 for £25, +100 for £45, expire at period end (Starter/Pro only)
-4. **Overage**: Hard block at limit with CTA (80% warning at limit * 0.8)
+3. **No Top-Ups**: Removed for MVP simplicity. Users upgrade instead.
+4. **Overage**: Hard block at limit with single upgrade CTA
+   - Starter: Warn at 48/50, block at 50/50 → "Upgrade to Pro"
+   - Pro: Warn at 190/200, block at 200/200 → "Resets [date]"
+   - Trial: Warn at 8/10, block at 10/10 → "Upgrade to Starter or Pro"
 5. **Currency**: GBP (UK-first), Stripe Tax enabled, `locale: 'auto'` for language
    - Display: "Billed in GBP. Your bank may apply conversion."
    - International cards work fine, Stripe handles conversion
@@ -1439,10 +1391,10 @@ All specifications confirmed by user:
 9. **Enterprise**: "Coming Soon" badge (not implemented)
 
 **Economic Nudges**:
-- Starter: 50 AI gens/mo (£29)
-- Pro: 200 AI gens/mo (£99)
-- Top-up math: 3×£25 = £75 → Pro at £99 is better deal
+- Starter: 50 AI gens/mo (£29) - for light users
+- Pro: 200 AI gens/mo (£99) - 4x capacity, only 3.4x price (better value)
 - Trial: 10 gens (experience Pro) → nudge to paid plan
+- Simple path: Hit limit → single "Upgrade to Pro" CTA (no decision paralysis)
 
 ---
 
