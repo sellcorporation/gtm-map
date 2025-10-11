@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
       ],
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing?canceled=true`,
+      billing_address_collection: 'required', // Required for automatic tax
       automatic_tax: { enabled: true },
       locale: 'auto',
       metadata: {
