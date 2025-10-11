@@ -49,10 +49,10 @@ export default function ForgotPasswordPage() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
             <p className="text-gray-600 mb-6">
-              If an account exists for <strong>{email}</strong>, we've sent a password reset link.
+              If an account exists for <strong>{email}</strong>, we&apos;ve sent a password reset link.
             </p>
             <p className="text-sm text-gray-500 mb-6">
-              The link will expire in 15 minutes. Didn't receive it? Check your spam folder or try again.
+              The link will expire in 15 minutes. Didn&apos;t receive it? Check your spam folder or try again.
             </p>
             <Link
               href="/login"
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
         {/* Logo/Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Forgot password?</h1>
-          <p className="text-gray-600">No worries, we'll send you reset instructions</p>
+          <p className="text-gray-600">No worries, we&apos;ll send you reset instructions</p>
         </div>
 
         {/* Form Card */}

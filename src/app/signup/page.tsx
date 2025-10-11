@@ -103,7 +103,7 @@ export default function SignupPage() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
             <p className="text-gray-600 mb-6">
-              We've sent a verification link to <strong>{email}</strong>
+              We&apos;ve sent a verification link to <strong>{email}</strong>
             </p>
             <p className="text-sm text-gray-500">
               Click the link in the email to verify your account and start using the app.
