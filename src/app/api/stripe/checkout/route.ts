@@ -155,8 +155,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('[CHECKOUT] Error:', error);
+    
+    // Enhanced error details
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[CHECKOUT] Error message:', errorMessage);
+    if (errorStack) {
+      console.error('[CHECKOUT] Error stack:', errorStack);
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create checkout session', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to create checkout session', 
+        details: errorMessage,
+        type: error instanceof Error ? error.constructor.name : typeof error
+      },
       { status: 500 }
     );
   }
