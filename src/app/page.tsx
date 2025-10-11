@@ -10,6 +10,8 @@ import SettingsModal from '@/components/SettingsModal';
 import MarketMapPanel from '@/components/MarketMapPanel';
 import UserMenu from '@/components/UserMenu';
 import { UsageBadge } from '@/components/billing/UsageBadge';
+import { WarningBanner } from '@/components/billing/WarningBanner';
+import { BlockModal } from '@/components/billing/BlockModal';
 import { createClient } from '@/lib/supabase/client';
 import type { Company, Cluster, Ad, Customer, ICP } from '@/types';
 
@@ -32,6 +34,8 @@ export default function HomePage() {
   
   // Billing state
   const [usage, setUsage] = useState<{ used: number; allowed: number; plan: string } | null>(null);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockModalData, setBlockModalData] = useState<{ used: number; allowed: number; plan: string } | null>(null);
 
   // Load existing data on mount
   useEffect(() => {
@@ -562,8 +566,38 @@ export default function HomePage() {
     toast.success('ICP Profile updated successfully');
   };
 
+  const handleUpgrade = async (plan: 'starter' | 'pro') => {
+    try {
+      console.log('[APP] Redirecting to billing for plan:', plan);
+      window.location.href = '/settings/billing';
+    } catch (error) {
+      console.error('[APP] Error navigating to billing:', error);
+      toast.error('Failed to navigate to billing page');
+    }
+  };
+
+  const shouldShowWarning = usage && usage.allowed > 0 && usage.used >= (usage.allowed - 2);
+  const isAtLimit = usage && usage.allowed > 0 && usage.used >= usage.allowed;
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Warning Banner */}
+      {shouldShowWarning && usage && !isAtLimit && (
+        <WarningBanner used={usage.used} allowed={usage.allowed} plan={usage.plan} />
+      )}
+
+      {/* Block Modal */}
+      {showBlockModal && blockModalData && (
+        <BlockModal 
+          isOpen={showBlockModal}
+          used={blockModalData.used}
+          allowed={blockModalData.allowed}
+          plan={blockModalData.plan}
+          onClose={() => setShowBlockModal(false)}
+          onUpgrade={handleUpgrade}
+        />
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
