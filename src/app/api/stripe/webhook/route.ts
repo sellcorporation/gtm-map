@@ -109,12 +109,20 @@ export async function POST(request: NextRequest) {
           })
           .eq('user_id', userId);
 
+        // Close trial when user subscribes to paid plan
+        await supabaseAdmin
+          .from('trial_usage')
+          .update({ expires_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .gt('expires_at', new Date().toISOString());
+
         console.log(
           '[WEBHOOK] Subscription created:',
           userId,
           planId,
           subscription.id
         );
+        console.log('[WEBHOOK] Trial closed for user:', userId);
         break;
       }
 
@@ -170,6 +178,16 @@ export async function POST(request: NextRequest) {
           .from('user_subscriptions')
           .update(updateData)
           .eq('user_id', userId);
+
+        // Close trial when subscription is updated to a paid plan
+        if (subscription.status === 'active') {
+          await supabaseAdmin
+            .from('trial_usage')
+            .update({ expires_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .gt('expires_at', new Date().toISOString());
+          console.log('[WEBHOOK] Trial closed for user:', userId);
+        }
 
         console.log('[WEBHOOK] Subscription updated:', userId, subscription.id);
         break;
