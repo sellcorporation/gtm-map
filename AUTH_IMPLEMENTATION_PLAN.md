@@ -72,12 +72,20 @@
 // PROFILES - Extends auth.users
 // ========================================
 export const profiles = pgTable('profiles', {
-  id: uuid('id').primaryKey(), // References auth.users(id)
+  id: uuid('id').primaryKey(), // References auth.users(id) with ON DELETE CASCADE
   fullName: text('full_name'),
   avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
+
+// SQL: CREATE TABLE profiles (
+//   id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+//   full_name text,
+//   avatar_url text,
+//   created_at timestamptz DEFAULT now(),
+//   updated_at timestamptz DEFAULT now()
+// );
 
 // ========================================
 // USER SETTINGS - Per-user preferences
@@ -127,8 +135,9 @@ export const ads = pgTable('ads', {
 -- Unique domain per user
 CREATE UNIQUE INDEX companies_domain_per_user ON companies (user_id, domain);
 
--- Fast lookups
-CREATE INDEX clusters_user_idx ON clusters (user_id);
+-- Fast lookups for RLS policies
+CREATE INDEX companies_user_idx ON companies USING btree (user_id);
+CREATE INDEX clusters_user_idx ON clusters USING btree (user_id);
 CREATE INDEX ads_cluster_idx ON ads (cluster_id);
 
 -- GIN indexes for JSONB (add later if needed)
@@ -272,7 +281,10 @@ CREATE POLICY "Users can delete own ads"
 -- Trigger function to create profile + settings
 -- ========================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
 BEGIN
   -- Create profile
   INSERT INTO public.profiles (id, full_name, avatar_url)
@@ -288,7 +300,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ========================================
 -- Attach trigger to auth.users
