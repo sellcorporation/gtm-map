@@ -1,478 +1,276 @@
-# Authentication System - Comprehensive Implementation Plan
+# Authentication System - Production-Ready MVP Plan
 
 **Branch:** `feature/user-authentication`  
 **Date:** October 11, 2025  
-**Status:** Planning Phase - Ready to Implement  
-**Recommended Stack:** ✅ **Vercel + Supabase Integration**
+**Status:** Ready to Implement  
+**Architecture:** ✅ **Supabase Auth + Postgres (Full Stack) via Vercel**
 
 ---
 
 ## 📢 **EXECUTIVE SUMMARY**
 
-### **Why Vercel + Supabase?**
+### **The Decision: All-In on Supabase**
 
-After discovering Vercel's **native Supabase integration**, this is now the clear winner:
+**Single database. Single auth provider. Zero split-brain. Clean MVP with rails for future teams/tiers.**
 
-✅ **One-click setup** through Vercel dashboard  
-✅ **Auto-configured** (13 environment variables set automatically)  
-✅ **Single billing** through Vercel  
-✅ **Production-ready auth** (signup, login, password reset, email verification)  
-✅ **Works with your existing Drizzle ORM** (Supabase uses PostgreSQL)  
-✅ **Preview branches** auto-configured  
-✅ **Bonus features:** Storage, Edge Functions, Realtime  
-✅ **Already installed:** `@supabase/supabase-js` is in your package.json  
-
-### **Two Implementation Paths:**
-
-| Feature | Path A: Full Supabase | Path B: Auth Only |
-|---------|----------------------|-------------------|
-| **Database** | Migrate to Supabase PostgreSQL | Keep existing + Supabase for users |
-| **Timeline** | 10-12 days | 7-9 days |
-| **Complexity** | Medium | Low |
-| **Long-term** | Cleaner, all in one place | Two databases to manage |
-| **Best For** | New or small projects | Minimal disruption |
-
-### **What You Need to Do:**
-
-1. ✅ Set up Vercel + Supabase integration (5 mins)
-2. ✅ Share design reference for UI
-3. ✅ Answer 8 key questions (see below)
-4. ✅ Choose Path A or B
-
-**Then I'll build everything!** 🚀
+✅ **Vercel + Supabase Integration** (native, one-click setup)  
+✅ **Supabase Auth** (email/password with verification)  
+✅ **Supabase PostgreSQL** (one database for everything)  
+✅ **Row Level Security** (database-enforced isolation)  
+✅ **Future-proof** (easy upgrade to organizations/tiers)  
+✅ **Production-ready** (13 auto-configured env vars, preview branches, backups)
 
 ---
 
-## 📊 Current State Analysis
+## 🎯 **MVP SCOPE**
 
-### Existing Implementation
-- **Basic password-only authentication** using `APP_PASSWORD` environment variable
-- **No user accounts** - single shared password for all users
-- **Session management** using HTTP-only cookies (24-hour duration)
-- **SHA-256 password hashing** (⚠️ **INSECURE** - not suitable for production)
-- **No registration flow** - users cannot create accounts
-- **No password recovery** mechanism
-- **userId is text field** in database but always set to `'demo-user'`
-- **Supabase already installed** (`@supabase/supabase-js`) but not utilized
+### **What We're Building**
 
-### Database Schema
-- **user_sessions** table exists with `userId` field
-- **companies, clusters, ads** tables all have `userId` field for multi-tenancy
-- **No users table** currently defined
-- Uses **PostgreSQL** via Drizzle ORM
+1. **Authentication** (Email/Password Only)
+   - Signup with email verification (required)
+   - Login/logout
+   - Forgot password flow
+   - Password reset flow
+   - Pages: `/signup`, `/login`, `/forgot-password`, `/reset-password`
 
----
+2. **User Data Model**
+   - `auth.users` (Supabase managed)
+   - `profiles` (app-specific data: full_name, avatar_url)
+   - `user_settings` (preferences: timezone, notifications)
+   - Post-signup hook auto-creates profile + settings
 
-## 🎯 Proposed Architecture
+3. **Data Isolation** (Single-User Tenancy)
+   - `companies.user_id → auth.users.id`
+   - `clusters.user_id → auth.users.id`
+   - `ads` (via cluster ownership)
+   - RLS enforces "users only see their own data"
 
-### Technology Stack Decision
+4. **Security**
+   - 7-day sessions, multi-device support
+   - Rate limits: 5 login/15min, 3 reset/hour, 3 signup/day
+   - Security headers (HSTS, CSP, etc.)
+   - Error copy doesn't leak account existence
 
-#### **✅ RECOMMENDED: Vercel + Supabase Integration** 🏆
-
-**Why This Is Perfect For You:**
-- ✅ **Native Vercel integration** - one-click setup through Vercel dashboard
-- ✅ **Auto-configured environment variables** - all 13 variables set automatically
-- ✅ **Single billing through Vercel** - no separate Supabase account needed
-- ✅ **Preview branch auto-config** - redirect URLs created automatically
-- ✅ **Already have `@supabase/supabase-js`** installed
-- ✅ **Production-ready auth** - signup, login, password reset, email verification
-- ✅ **Social auth** (Google, GitHub, etc.) ready to enable
-- ✅ **Supabase PostgreSQL** works perfectly with your existing Drizzle ORM
-- ✅ **Row Level Security (RLS)** for database security
-- ✅ **Bonus features:** Storage, Edge Functions, Realtime
-- ✅ **Email templates** included
-- ✅ **Free tier** is generous
-
-**Environment Variables Auto-Set by Vercel:**
-```
-POSTGRES_URL
-POSTGRES_PRISMA_URL
-POSTGRES_URL_NON_POOLING
-POSTGRES_USER
-POSTGRES_HOST
-POSTGRES_PASSWORD
-POSTGRES_DATABASE
-SUPABASE_SERVICE_ROLE_KEY
-SUPABASE_ANON_KEY
-SUPABASE_URL
-SUPABASE_JWT_SECRET
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_SUPABASE_URL
-```
-
-**Implementation Options:**
-
-**Option A: Full Supabase Stack** (Recommended for new projects)
-- Use Supabase PostgreSQL as your primary database
-- Use Supabase Auth for authentication
-- Your existing Drizzle ORM code works with zero changes
-- All data in one place, managed through Vercel
-- **Best for:** Clean architecture, all features available
-
-**Option B: Supabase Auth + Keep Existing Database** (Easier migration)
-- Keep your current PostgreSQL for app data (companies, prospects)
-- Use Supabase PostgreSQL only for authentication (users table)
-- Sync `userId` between systems
-- **Best for:** Minimal disruption, gradual migration
+5. **Future-Ready**
+   - UUID-based user_id (supports orgs later)
+   - RLS architecture scales to multi-tenant
+   - **Phase 2** (future): Add `organizations` + `memberships` tables
 
 ---
 
-#### **Alternative: NextAuth.js** (Not Recommended)
+## 🗂️ **DATABASE SCHEMA**
 
-**Pros:**
-- ✅ Single database (your existing PostgreSQL)
-- ✅ No external auth service
+### **Migration: `text` → `uuid` for `user_id`**
 
-**Cons:**
-- ⚠️ Need to add dependency
-- ⚠️ More manual setup required
-- ⚠️ Email service needed separately (Resend, SendGrid)
-- ⚠️ More code to maintain
-- ⚠️ No native Vercel integration
-- ⚠️ Social auth is more complex
-- ⚠️ Missing production features (preview URLs, etc.)
+**Current Problem:** Your tables use `userId: text` (set to `'demo-user'`)  
+**Fix:** Change to `userId: uuid` to match Supabase `auth.users.id`
 
-**Why Not:** Vercel + Supabase gives you everything NextAuth provides PLUS better Vercel integration, easier setup, and bonus features.
-
----
-
-**FINAL RECOMMENDATION:** **Vercel + Supabase Integration (Option A or B)** - Production-ready, hassle-free, perfectly integrated with your stack.
-
----
-
-## 🔐 Security Implementation Plan
-
-### Password Security
-
-**⚠️ You Don't Handle Passwords - Supabase Does!**
-
-- Supabase Auth handles all password hashing (industry best practices)
-- You **never** see or store plain text passwords
-- Current SHA-256 implementation **will be removed**
-- **Your responsibility:** Password requirements configuration only
-
-**Password Requirements (Configured in Supabase):**
-- Minimum 8 characters (configurable)
-- Optional: Mix of uppercase, lowercase, numbers
-- Optional: Special characters
-- Optional: Check against common password lists (Have I Been Pwned)
-
-**DO NOT implement custom password hashing** - Supabase handles this securely.
-
-### Session Management
-
-**MVP Session Strategy:**
-- **Session duration:** 7 days (configurable in Supabase)
-- **Session rotation:** Rotate session token on every login
-- **Privilege change:** Rotate session on password change or role updates
-- **HTTP-only cookies:** ✅ (Supabase handles)
-- **Secure flag in production:** ✅ (Supabase handles)
-- **SameSite: Lax:** ✅ (Supabase handles)
-- **Auto-refresh:** Supabase SDK auto-refreshes before expiry
-- **Concurrent sessions:** Allow multiple devices (MVP)
-
-**Backlog (Post-MVP):**
-- "Log out of all devices" button in user settings
-- Session management UI (see all active sessions)
-- Revoke specific sessions
-
-### Database Security - Row Level Security (RLS)
-
-**⚠️ CRITICAL: Write and Test Actual RLS Policies**
-
-Don't just "configure RLS" - implement and test specific policies.
-
-#### **RLS Policies to Implement:**
-
-```sql
--- Enable RLS on tables
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.clusters ENABLE ROW LEVEL SECURITY;
-
--- Profiles: users can only access their own profile
-CREATE POLICY "Users can view own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id);
-
--- User Settings: users can only access their own settings
-CREATE POLICY "Users can view own settings"
-  ON public.user_settings FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own settings"
-  ON public.user_settings FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- Companies: users can only access their own data
-CREATE POLICY "Users can view own companies"
-  ON public.companies FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own companies"
-  ON public.companies FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own companies"
-  ON public.companies FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own companies"
-  ON public.companies FOR DELETE
-  USING (auth.uid() = user_id);
-
--- Clusters: same pattern
-CREATE POLICY "Users can view own clusters"
-  ON public.clusters FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own clusters"
-  ON public.clusters FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own clusters"
-  ON public.clusters FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own clusters"
-  ON public.clusters FOR DELETE
-  USING (auth.uid() = user_id);
-```
-
-#### **RLS Testing Requirements:**
-
-**Unit Tests:** Test policies programmatically
-```typescript
-// Test: User A cannot access User B's data
-test('RLS prevents cross-user access', async () => {
-  const userA = await signUp('userA@test.com');
-  const userB = await signUp('userB@test.com');
-  
-  // User A creates a company
-  const companyA = await createCompany(userA, 'Company A');
-  
-  // User B tries to access User A's company
-  const result = await fetchCompany(userB, companyA.id);
-  expect(result).toBeNull(); // Should fail due to RLS
-});
-```
-
-**E2E Tests:** Test via actual API calls
-```typescript
-// Test: Attempt to query another user's data
-test('API respects RLS for companies', async () => {
-  const userA = await loginAs('userA@test.com');
-  const userB = await loginAs('userB@test.com');
-  
-  // Create company as User A
-  const companyId = await createCompanyAPI(userA.token, { name: 'Test' });
-  
-  // Try to fetch as User B
-  const response = await fetch(`/api/company/${companyId}`, {
-    headers: { Authorization: `Bearer ${userB.token}` }
-  });
-  
-  expect(response.status).toBe(404); // Or 403 Forbidden
-});
-```
-
-### Other Database Security
-
-- **API endpoints** always verify `userId` from session
-- **Input validation** with Zod (already using ✅)
-- **SQL injection protection** via Drizzle ORM (already using ✅)
-
-### API Security
-- **Rate limiting** on auth endpoints (login, signup, password reset)
-- **CORS configuration** proper
-- **CSRF protection** via SameSite cookies
-- **Brute force protection** - lockout after N failed attempts
-
----
-
-## 🗂️ Database Schema Changes
-
-### **Path A: Full Supabase Migration**
-
-**Good News:** Your Drizzle ORM code works with **zero changes**! Supabase uses PostgreSQL.
-
-**What Changes:**
-1. Connection URL → Use `POSTGRES_URL` from Vercel (auto-set)
-2. Add `users` table to your schema
-3. Update existing tables with foreign key constraints
-
-### ⚠️ **CRITICAL: Do NOT Create a `users` Table**
-
-**Supabase Auth already provides `auth.users`!** Creating your own users table causes:
-- Data drift
-- Sync issues
-- Maintenance pain
-
-### **Instead: Create `profiles` + `user_settings` Tables**
+### **New Tables**
 
 ```typescript
-// profiles - extends auth.users with app-specific data
+// ========================================
+// PROFILES - Extends auth.users
+// ========================================
 export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey(), // References auth.users(id)
   fullName: text('full_name'),
   avatarUrl: text('avatar_url'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-  lastLoginAt: timestamp('last_login_at'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
-// user_settings - user preferences
+// ========================================
+// USER SETTINGS - Per-user preferences
+// ========================================
 export const userSettings = pgTable('user_settings', {
-  id: serial('id').primaryKey(),
-  userId: uuid('user_id').notNull(), // References auth.users(id)
+  userId: uuid('user_id').primaryKey().references(() => profiles.id, { onDelete: 'cascade' }),
+  timezone: text('timezone').default('Europe/London'),
   emailNotifications: boolean('email_notifications').default(true),
-  sessionDuration: text('session_duration').default('7d'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 ```
 
-**Key Points:**
-- `profiles.id` = `auth.users.id` (1:1 relationship)
-- Email, password, email_verified → Managed by Supabase Auth
-- Your app data → `profiles` and `user_settings`
-
-### Update Existing Tables - **CRITICAL: Change to UUID**
-
-**Current Issue:** Your `userId` is `text`. Supabase Auth uses `uuid`.
+### **Updated Existing Tables**
 
 ```typescript
-// CHANGE existing tables from text to uuid
+// ========================================
+// COMPANIES - Change userId to UUID
+// ========================================
 export const companies = pgTable('companies', {
   // ... existing columns
-  userId: uuid('user_id').notNull(), // CHANGED from text to uuid
-  // Later add: .references(() => profiles.id, { onDelete: 'cascade' })
+  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }), // CHANGED
+  // ... rest
 });
 
+// ========================================
+// CLUSTERS - Change userId to UUID
+// ========================================
 export const clusters = pgTable('clusters', {
   // ... existing columns
-  userId: uuid('user_id').notNull(), // CHANGED from text to uuid
+  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }), // CHANGED
+  // ... rest
 });
 
-export const userSessions = pgTable('user_sessions', {
+// ========================================
+// ADS - No userId (linked via cluster)
+// ========================================
+export const ads = pgTable('ads', {
   // ... existing columns
-  userId: uuid('user_id').notNull(), // CHANGED from text to uuid
+  clusterId: integer('cluster_id').notNull().references(() => clusters.id, { onDelete: 'cascade' }),
+  // ... rest
 });
 ```
 
-**MVP Approach:**
-- ✅ Change column type to `uuid`
-- ✅ Store `auth.users.id` value on write
-- ⚠️ **Don't add FK constraints yet** if keeping app DB separate
-- ✅ Enforce in application code
-- ✅ Add FK constraints later when migrating to Supabase
+### **Indexes (Fast & Simple)**
 
-**⚠️ MVP Scope Note:**
-This is **single-user tenancy** (each user owns their data).  
-**Phase 2** will introduce organizations, team memberships, and shared workspaces.
-
----
-
-## 🔄 **Future: Upgrade Path to Organizations & Tiers**
-
-**MVP Architecture:** Supabase Auth + basic per-user data isolation  
-**Goal:** Easily upgradeable to organizations/teams/billing tiers later
-
-### **Phase 2: Organizations Architecture** (Future)
-
-When you're ready to add organizations:
-
-#### **New Tables:**
-```typescript
-export const organizations = pgTable('organizations', {
-  id: uuid('id').primaryKey(),
-  name: text('name').notNull(),
-  billingTier: text('billing_tier').default('free'), // free, pro, enterprise
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-export const memberships = pgTable('memberships', {
-  id: serial('id').primaryKey(),
-  userId: uuid('user_id').references(() => profiles.id),
-  organizationId: uuid('organization_id').references(() => organizations.id),
-  role: text('role').notNull(), // owner, admin, member, viewer
-  joinedAt: timestamp('joined_at').defaultNow(),
-});
-```
-
-#### **Update Data Tables:**
-```typescript
-// Add organizationId to existing tables
-export const companies = pgTable('companies', {
-  // ... existing columns
-  userId: uuid('user_id').notNull(), // Keep for backwards compatibility
-  organizationId: uuid('organization_id'), // NEW - nullable for migration
-});
-```
-
-#### **Updated RLS Policies:**
 ```sql
--- New policy: Users can access data from their organizations
-CREATE POLICY "Users can view org companies"
-  ON public.companies FOR SELECT
+-- Unique domain per user
+CREATE UNIQUE INDEX companies_domain_per_user ON companies (user_id, domain);
+
+-- Fast lookups
+CREATE INDEX clusters_user_idx ON clusters (user_id);
+CREATE INDEX ads_cluster_idx ON ads (cluster_id);
+
+-- GIN indexes for JSONB (add later if needed)
+-- CREATE INDEX companies_evidence_gin ON companies USING GIN (evidence);
+```
+
+### **Row Level Security (RLS) Policies**
+
+```sql
+-- ========================================
+-- PROFILES
+-- ========================================
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own profile"
+  ON profiles FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+  ON profiles FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- ========================================
+-- USER SETTINGS
+-- ========================================
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own settings"
+  ON user_settings FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- ========================================
+-- COMPANIES
+-- ========================================
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own companies"
+  ON companies FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own companies"
+  ON companies FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own companies"
+  ON companies FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own companies"
+  ON companies FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- ========================================
+-- CLUSTERS
+-- ========================================
+ALTER TABLE clusters ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own clusters"
+  ON clusters FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own clusters"
+  ON clusters FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own clusters"
+  ON clusters FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own clusters"
+  ON clusters FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- ========================================
+-- ADS (via cluster ownership)
+-- ========================================
+ALTER TABLE ads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own ads"
+  ON ads FOR SELECT
   USING (
-    organization_id IN (
-      SELECT organization_id 
-      FROM memberships 
-      WHERE user_id = auth.uid()
+    EXISTS (
+      SELECT 1 FROM clusters
+      WHERE clusters.id = ads.cluster_id
+      AND clusters.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert own ads"
+  ON ads FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM clusters
+      WHERE clusters.id = ads.cluster_id
+      AND clusters.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update own ads"
+  ON ads FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM clusters
+      WHERE clusters.id = ads.cluster_id
+      AND clusters.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM clusters
+      WHERE clusters.id = ads.cluster_id
+      AND clusters.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete own ads"
+  ON ads FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM clusters
+      WHERE clusters.id = ads.cluster_id
+      AND clusters.user_id = auth.uid()
     )
   );
 ```
 
-#### **Migration Path:**
-1. Add new tables (organizations, memberships)
-2. Auto-create organization for each existing user
-3. Add organizationId column to data tables (nullable)
-4. Populate organizationId based on userId
-5. Update RLS policies to check membership
-6. Add billing tier logic
-
-**Key Point:** Current UUID-based architecture makes this upgrade smooth. No data loss, backward compatible.
-
 ---
 
-### Migration Strategy
+## 🪝 **POST-SIGNUP HOOK** (Critical)
 
-**Path A (Full Migration):**
-1. ✅ Export data from current PostgreSQL
-2. ✅ Update Drizzle connection to `POSTGRES_URL`
-3. ✅ Create `users` table in Supabase
-4. ✅ Create other tables (companies, clusters, etc.)
-5. ✅ Import data
-6. ✅ Add foreign key constraints
-7. ✅ Test all queries work
+**Problem:** When a user signs up, only `auth.users` is created. We need `profiles` and `user_settings` too.
 
-**Path B (Auth Only):**
-1. ✅ Keep existing PostgreSQL connection
-2. ✅ Add separate Supabase connection for auth
-3. ✅ Create `users` table in Supabase only
-4. ✅ Sync userId when creating companies/clusters
-5. ✅ No data migration needed!
-
-**Recommendation:** Path B for **minimal disruption**, Path A for **cleaner architecture**.
-
----
-
-## 🪝 Post-Signup Hook (CRITICAL)
-
-**Problem:** When a user signs up, `auth.users` is created, but `profiles` and `user_settings` are not.
-
-**Solution:** Implement a **Database Trigger** or **Edge Function** to auto-create related records.
-
-### **Option A: Database Trigger** (Recommended - Simpler)
+**Solution:** Database trigger (recommended for MVP reliability)
 
 ```sql
--- Create trigger function
+-- ========================================
+-- Trigger function to create profile + settings
+-- ========================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -492,494 +290,665 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ========================================
 -- Attach trigger to auth.users
+-- ========================================
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 ```
 
-### **Option B: Supabase Edge Function** (More flexible)
+**Alternative:** Supabase Edge Function webhook (more flexible, but requires webhook config)
+
+---
+
+## 🔐 **SECURITY IMPLEMENTATION**
+
+### **Password Security**
+
+**You don't handle passwords - Supabase does!**
+
+- ✅ Supabase Auth handles all hashing (industry best practices)
+- ✅ You **never** see or store plain text passwords
+- ✅ **Your job:** Configure password requirements in Supabase dashboard
+
+**Supabase Settings:**
+- Minimum 8 characters
+- Optional: Mix of uppercase, lowercase, numbers
+- Optional: Special characters
+- Optional: Check against Have I Been Pwned database
+
+### **Session Management**
+
+**MVP Strategy:**
+- **Duration:** 7 days
+- **Rotation:** On every login + on password change
+- **Multi-device:** Allowed ✅
+- **Storage:** HTTP-only cookies (Supabase handles)
+- **Secure flag:** Enabled in production (Supabase handles)
+- **SameSite:** `Lax` (Supabase handles)
+- **Auto-refresh:** Supabase SDK auto-refreshes before expiry
+
+**Post-MVP Backlog:**
+- "Log out of all devices" button
+- Session management UI (view/revoke active sessions)
+
+### **Rate Limiting**
 
 ```typescript
-// supabase/functions/on-user-created/index.ts
-import { createClient } from '@supabase/supabase-js';
+// Login: 5 attempts per 15 minutes per IP
+// Password reset: 3 requests per hour per email
+// Signup: 3 signups per day per IP
+// CAPTCHA on anomalies (optional)
+```
 
-Deno.serve(async (req) => {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+### **Error Messages (Prevent Account Enumeration)**
+
+**Bad:**  
+❌ "This email doesn't exist"  
+❌ "Incorrect password"
+
+**Good:**  
+✅ "If that email exists, we've sent instructions."  
+✅ "Invalid credentials. Please try again."
+
+### **Security Headers**
+
+```typescript
+// Add to next.config.ts
+headers: [
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload'
+  },
+  {
+    key: 'X-Frame-Options',
+    value: 'DENY'
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff'
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'strict-origin-when-cross-origin'
+  },
+  {
+    key: 'Content-Security-Policy',
+    value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+  }
+]
+```
+
+### **Secrets Management**
+
+```bash
+# PUBLIC (client-side)
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+# SERVER-ONLY (never expose)
+SUPABASE_SERVICE_ROLE_KEY  # ⚠️ CRITICAL: Server-only!
+SUPABASE_JWT_SECRET
+```
+
+---
+
+## 🌐 **FRONTEND WIRING** (Next.js + Supabase SSR)
+
+### **1. Install Package**
+
+```bash
+npm install @supabase/ssr
+```
+
+### **2. Create Supabase Clients**
+
+```typescript
+// src/lib/supabase/server.ts
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+export function createClient() {
+  const cookieStore = cookies();
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
   );
+}
 
-  const { record } = await req.json(); // auth.users record
-  
-  // Create profile
-  await supabase.from('profiles').insert({
-    id: record.id,
-    full_name: record.raw_user_meta_data?.full_name,
-    avatar_url: record.raw_user_meta_data?.avatar_url,
-  });
-  
-  // Create settings
-  await supabase.from('user_settings').insert({
-    user_id: record.id,
-  });
-  
-  return new Response('OK', { status: 200 });
+// src/lib/supabase/client.ts
+import { createBrowserClient } from '@supabase/ssr';
+
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+```
+
+### **3. Auth Flows**
+
+```typescript
+// Signup
+const { data, error } = await supabase.auth.signUp({
+  email: 'user@example.com',
+  password: 'password123',
+  options: {
+    emailRedirectTo: `${location.origin}/auth/callback`,
+    data: {
+      full_name: 'John Doe',
+    }
+  }
+});
+
+// Login
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: 'user@example.com',
+  password: 'password123',
+});
+
+// Logout
+await supabase.auth.signOut();
+
+// Get current user (server)
+const { data: { user } } = await supabase.auth.getUser();
+
+// Reset password request
+await supabase.auth.resetPasswordForEmail('user@example.com', {
+  redirectTo: `${location.origin}/reset-password`,
+});
+
+// Update password
+await supabase.auth.updateUser({
+  password: 'new_password',
 });
 ```
 
-Then configure webhook in Supabase Dashboard:
-- Auth → Hooks → "insert" on auth.users → Point to Edge Function
+### **4. Protected Routes**
 
-**Recommendation:** **Database Trigger** for MVP (simpler, no webhook config needed).
+```typescript
+// src/middleware.ts
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse } from 'next/server';
 
----
+export async function middleware(request: Request) {
+  const supabase = createServerClient(/* ... */);
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user && !request.url.includes('/login')) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+  
+  return NextResponse.next();
+}
 
-## 🎨 UI/UX Flow
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|login|signup|forgot-password|reset-password).*)'],
+};
+```
 
-### Pages Needed
-1. **Login Page** (`/login`)
-   - Email + Password
-   - "Remember me" checkbox
-   - "Forgot password?" link
-   - "Don't have an account? Sign up" link
-   - Social auth buttons (optional)
+### **5. All CRUD Uses `user_id = auth.uid()`**
 
-2. **Signup Page** (`/signup`)
-   - Full name
-   - Email
-   - Password
-   - Confirm password
-   - Terms & conditions checkbox
-   - "Already have an account? Login" link
-   - Social auth buttons (optional)
+```typescript
+// API route example
+const { data: { user } } = await supabase.auth.getUser();
 
-3. **Forgot Password Page** (`/forgot-password`)
-   - Email input
-   - Submit button
-   - Back to login link
+// Insert with RLS
+await db.insert(companies).values({
+  name: 'Company',
+  userId: user.id, // UUID from Supabase
+});
 
-4. **Reset Password Page** (`/reset-password?token=xyz`)
-   - New password
-   - Confirm new password
-   - Submit button
-
-5. **Email Verification Page** (`/verify-email?token=xyz`)
-   - Success/error message
-   - Redirect to dashboard or login
-
-6. **User Profile/Settings** (future)
-   - Change password
-   - Update profile info
-   - Manage sessions
-   - Delete account
-
-### Design Reference
-You mentioned liking a marketing page signup design. **Please share:**
-- Screenshot or link to the design you like
-- Any specific design system/brand colors
-- Any specific components or animations you want
+// RLS automatically filters queries
+const myCompanies = await db.select().from(companies); // Only returns user's data
+```
 
 ---
 
-## ❓ Key Questions for You
+## ⚙️ **VERCEL + SUPABASE CONFIGURATION**
 
-### Critical Decisions Needed
+### **1. Set SITE_URL**
 
-#### 1. **Authentication Provider**
-- **Do you want to use Supabase Auth?** (Recommended - you already have it installed)
-- Or would you prefer NextAuth.js or custom solution?
+In Supabase dashboard (via Vercel):
+```
+Authentication → URL Configuration → Site URL
+https://your-app.vercel.app
+```
 
-#### 2. **Social Authentication**
-- Do you want users to sign in with:
-  - [ ] Google
-  - [ ] GitHub
-  - [ ] LinkedIn
-  - [ ] Microsoft
-  - [ ] Other?
-- Or **email/password only** for now?
+### **2. Add Redirect URLs**
 
-#### 3. **Email Service**
-- For password resets and verification emails, which service?
-  - Supabase (built-in if using Supabase Auth)
-  - Resend
-  - SendGrid
-  - AWS SES
-  - Other?
+```
+Authentication → URL Configuration → Redirect URLs
+https://your-app.vercel.app/**
+https://*.vercel.app/**  (for preview branches)
+```
 
-#### 4. **Email Verification**
-- **Require email verification** before users can access the app?
-- Or allow immediate access and verify later?
+### **3. Email Templates**
 
-#### 5. **Registration Flow**
-- **Open registration** (anyone can sign up)?
-- **Invite-only** (require invite code)?
-- **Waitlist** (request access)?
+**MVP:** Use Supabase default templates ✅
 
-#### 6. **User Roles/Permissions** (Future)
-- Do you plan to have different user types?
-  - Admin vs Regular User?
-  - Team/workspace features?
-  - Billing/subscription tiers?
-- Or all users have same access for now?
+**Later:** Customize in Supabase Dashboard → Authentication → Email Templates
+- Add your logo
+- Update colors
+- Customize copy
 
-#### 7. **Session Management**
-- Allow users to be logged in on **multiple devices**?
-- Or **single session** only (logout on new device)?
-- Session duration: **7 days** or different?
-
-#### 8. **Branding & Design**
-- Can you share the design reference you mentioned?
-- Color scheme preference?
-- Logo available?
-
-#### 9. **Data Migration**
-- What happens to existing data tied to `'demo-user'`?
-  - Transfer to first registered user?
-  - Keep as demo data?
-  - Delete it?
-
-#### 10. **Rate Limiting**
-- Strict limits (e.g., 5 login attempts per 15 mins)?
-- Or more lenient for MVP?
+**Future (Post-MVP):** Configure custom SMTP (Resend, Postmark) with SPF/DKIM/DMARC for better deliverability
 
 ---
 
-## 🚨 FMEA - Failure Mode and Effects Analysis
+## ✅ **MVP ACCEPTANCE CRITERIA** (Ship When All Pass)
 
-### Authentication & Authorization Failures
+### **Functional Tests**
 
-| # | Failure Mode | Potential Causes | Effects | Severity (1-10) | Likelihood (1-10) | Risk Priority | Detection Method | Mitigation Strategy | Residual Risk |
-|---|--------------|------------------|---------|---------|----------|---------------|------------------|---------------------|---------------|
-| **1** | **User locked out of account** | Forgot password, no recovery email | Cannot access application | 8 | 7 | 56 | User report | • Implement password reset flow<br>• Email verification<br>• Support contact | LOW |
-| **2** | **Password breach (plain text/weak hash)** | Using SHA-256 or worse | User accounts compromised | 10 | 9 | 90 | Security audit | • Use bcrypt/Supabase Auth<br>• Never store plain text<br>• Minimum 14 rounds | LOW |
-| **3** | **Session hijacking** | XSS, stolen cookie | Unauthorized access to account | 9 | 5 | 45 | Security monitoring | • HTTP-only cookies ✅<br>• Secure flag in prod ✅<br>• SameSite attribute ✅<br>• CSRF tokens<br>• Short session duration | MED |
-| **4** | **Brute force attack on login** | No rate limiting | Account takeover | 8 | 8 | 64 | Failed login monitoring | • Rate limiting (5 tries/15min)<br>• Account lockout after N attempts<br>• CAPTCHA after 3 failures<br>• Email notification on failed attempts | LOW |
-| **5** | **Email enumeration** | Different responses for existing/non-existing emails | Privacy leak, targeted attacks | 6 | 7 | 42 | Security testing | • Same response for existing/non-existing emails<br>• Generic error messages<br>• Rate limiting | LOW |
-| **6** | **Token reuse/replay attack** | JWT/reset tokens not invalidated | Unauthorized password reset | 9 | 4 | 36 | Log analysis | • One-time use tokens<br>• Short expiry (15 mins for reset)<br>• Store used tokens<br>• Invalidate on use | LOW |
-| **7** | **Account takeover via password reset** | Reset link sent to wrong email | User loses account access | 9 | 3 | 27 | User report | • Email verification required<br>• Confirmation email on changes<br>• Security questions (optional) | LOW |
-| **8** | **No email verification** | Fake emails, spam accounts | Database pollution, abuse | 6 | 8 | 48 | Admin dashboard | • Require email verification<br>• Block disposable emails<br>• CAPTCHA on signup | MED |
-| **9** | **SQL injection** | Unsanitized user input | Database compromise | 10 | 2 | 20 | Automated testing | • Use Drizzle ORM ✅<br>• Input validation with Zod ✅<br>• Parameterized queries ✅ | LOW |
-| **10** | **Cross-Site Scripting (XSS)** | Unsanitized output | Session theft, account takeover | 9 | 3 | 27 | Security scanning | • React escaping ✅<br>• CSP headers<br>• Input sanitization | LOW |
+- [ ] Sign up → receive verification email → click link → redirected to app
+- [ ] `profiles` and `user_settings` rows exist for new `auth.users.id`
+- [ ] Login with verified account → dashboard loads
+- [ ] Session persists across browser refresh/restart (7 days)
+- [ ] Logout → protected routes redirect to login
+- [ ] Forgot password → email arrives → reset link works → old password invalid
+- [ ] Login holds across multiple devices simultaneously
 
-### Database & Data Integrity Failures
+### **Security Tests (CRITICAL)**
 
-| # | Failure Mode | Potential Causes | Effects | Severity | Likelihood | Risk Priority | Detection Method | Mitigation Strategy | Residual Risk |
-|---|--------------|------------------|---------|----------|------------|---------------|------------------|---------------------|---------------|
-| **11** | **Orphaned data after user deletion** | No cascade delete setup | Data inconsistency | 5 | 6 | 30 | Data audit | • Foreign key constraints with CASCADE<br>• Soft delete option<br>• Data retention policy | LOW |
-| **12** | **Race condition on concurrent logins** | Multiple sessions created simultaneously | Session confusion | 4 | 5 | 20 | Load testing | • Database transactions<br>• Proper locking<br>• Idempotent operations | LOW |
-| **13** | **Database connection pool exhausted** | Too many auth requests | Service unavailable | 8 | 4 | 32 | Monitoring alerts | • Connection pooling config<br>• Rate limiting<br>• Load balancing<br>• Caching | LOW |
-| **14** | **Lost user data on migration** | Schema changes, data transfer errors | User frustration, data loss | 9 | 3 | 27 | Migration testing | • Backup before migration<br>• Rollback plan<br>• Test on staging<br>• Gradual rollout | LOW |
+- [ ] **RLS Test 1:** User A creates company → User B cannot see it
+- [ ] **RLS Test 2:** User A creates cluster → User B cannot access it
+- [ ] **RLS Test 3:** User A cannot read/update User B's profile
+- [ ] **RLS Test 4:** User A cannot view User B's settings
+- [ ] **RLS Test 5:** API attempts to access another user's data are blocked
+- [ ] Session rotates on login (new token issued)
+- [ ] Session invalidates on password change
+- [ ] Rate limits fire (5 login attempts → blocked)
+- [ ] Error messages don't leak account existence
 
-### Email & Communication Failures
+### **UI/UX Tests**
 
-| # | Failure Mode | Potential Causes | Effects | Severity | Likelihood | Risk Priority | Detection Method | Mitigation Strategy | Residual Risk |
-|---|--------------|------------------|---------|----------|------------|---------------|------------------|---------------------|---------------|
-| **15** | **Verification email not received** | Spam filter, wrong email | User cannot access app | 7 | 6 | 42 | User report | • "Resend email" option<br>• Allow email change pre-verification<br>• Clear instructions<br>• Use reputable email service | MED |
-| **16** | **Email service outage** | Third-party service down | Cannot send emails | 7 | 4 | 28 | Service monitoring | • Fallback email provider<br>• Queue system<br>• Retry logic<br>• Status page | MED |
-| **17** | **Expired password reset link** | User delayed action | User frustration | 5 | 7 | 35 | User report | • Clear expiry time shown<br>• Easy to request new link<br>• 15-60 min expiry window | LOW |
+- [ ] All pages mobile-responsive (iOS, Android)
+- [ ] All pages work on desktop (Chrome, Safari, Firefox)
+- [ ] Loading states display during async operations
+- [ ] Error messages are clear and actionable
+- [ ] "Show password" toggle works
+- [ ] "Resend verification email" works
 
-### User Experience & Edge Cases
+### **Infrastructure Tests**
 
-| # | Failure Mode | Potential Causes | Effects | Severity | Likelihood | Risk Priority | Detection Method | Mitigation Strategy | Residual Risk |
-|---|--------------|------------------|---------|----------|------------|---------------|------------------|---------------------|---------------|
-| **18** | **User forgets which email was used** | Multiple emails | Cannot log in | 6 | 6 | 36 | User report | • "Find my account" feature<br>• Support contact<br>• Social login as alternative | MED |
-| **19** | **Password too complex to remember** | Strict requirements | Constant password resets | 4 | 8 | 32 | Analytics tracking | • Balanced requirements (8+ chars)<br>• Password manager encouragement<br>• "Show password" toggle ✅ | LOW |
-| **20** | **Mobile app not responsive** | Design not mobile-first | Poor user experience | 5 | 3 | 15 | Mobile testing | • Responsive design ✅<br>• Touch-friendly buttons ✅<br>• Test on real devices | LOW |
-| **21** | **User tries to sign up with existing email** | Forgot they have account | Confusion | 4 | 7 | 28 | Form validation | • Clear error message<br>• "Login instead" link<br>• "Forgot password" reminder | LOW |
-| **22** | **Network timeout during signup** | Slow connection | Unclear if signup succeeded | 6 | 5 | 30 | Error handling | • Loading states<br>• Timeout handling<br>• Clear error messages<br>• Retry logic | LOW |
-
-### Infrastructure & Deployment Failures
-
-| # | Failure Mode | Potential Causes | Effects | Severity | Likelihood | Risk Priority | Detection Method | Mitigation Strategy | Residual Risk |
-|---|--------------|------------------|---------|----------|------------|---------------|------------------|---------------------|---------------|
-| **23** | **Environment variable missing** | Deployment misconfiguration | App crash, cannot authenticate | 9 | 4 | 36 | Build-time checks | • Validate env vars on startup<br>• CI/CD checks<br>• Default fallbacks where safe<br>• Documentation | LOW |
-| **24** | **Supabase service outage** | Third-party dependency | Cannot authenticate | 8 | 2 | 16 | Status page monitoring | • Graceful degradation<br>• Cached sessions<br>• Status page<br>• SLA monitoring | MED |
-| **25** | **Migration rollback needed** | Critical bug in production | User lockout | 8 | 3 | 24 | Monitoring, user reports | • Feature flags<br>• Rollback script ready<br>• Database backups<br>• Staged rollout | LOW |
+- [ ] Preview branch deployments work (redirect URLs auto-configured)
+- [ ] Environment variables present in Vercel
+- [ ] Email delivery works (verification, reset)
+- [ ] Post-signup hook creates profile + settings (no manual step)
+- [ ] Database connection pooling stable under load
 
 ---
 
-## 📋 Implementation Phases
+## 📋 **IMPLEMENTATION PHASES**
 
-### **Phase 0: Vercel Setup** (30 minutes) ⚡
-- [ ] Go to Vercel dashboard → Your project
-- [ ] Navigate to "Storage" tab
-- [ ] Click "Create Database" → Select "Supabase"
-- [ ] Follow wizard (Vercel auto-configures everything)
-- [ ] Verify all 13 environment variables are set
+### **Phase 0: Prerequisites** (30 minutes - USER DOES THIS)
+
+- [ ] Set up Vercel + Supabase integration (Vercel dashboard → Storage → Create Supabase)
+- [ ] Verify 13 environment variables auto-set
 - [ ] Access Supabase dashboard via Vercel
+- [ ] Share design reference for UI styling
 
-### **Phase 1: Database Strategy & Schema** (4-6 hours)
+---
 
-**CRITICAL: Fix userId type first!**
+### **Phase 1: Database Migration** (4-6 hours)
 
-#### **Step 1.1: Update Schema to UUID** (2 hours)
-- [ ] Change `userId` from `text` to `uuid` in all tables:
+#### **1.1 Update Schema (2 hours)**
+- [ ] Change `userId` from `text` to `uuid` in:
   - `companies.userId`
   - `clusters.userId`
-  - `user_sessions.userId`
-- [ ] Create migration script for existing data
-- [ ] Test migration on local database
-
-#### **Step 1.2: Create New Tables** (1 hour)
-- [ ] Create `profiles` table (NOT users!)
-  - `id: uuid` (primary key, references `auth.users.id`)
-  - `fullName`, `avatarUrl`, timestamps
-- [ ] Create `user_settings` table
-  - `userId: uuid` (references `auth.users.id`)
-  - Settings fields
+  - `user_sessions.userId` (or delete this table if Supabase handles sessions)
+- [ ] Add `profiles` table (id, full_name, avatar_url, timestamps)
+- [ ] Add `user_settings` table (user_id, timezone, email_notifications, timestamps)
 - [ ] Write Drizzle schema definitions
+- [ ] Generate migration files
 
-#### **Step 1.3: Set Up Post-Signup Hook** (1 hour)
-- [ ] Write database trigger function `handle_new_user()`
+#### **1.2 Deploy Schema (1 hour)**
+- [ ] Run `drizzle-kit push` to Supabase
+- [ ] Verify tables created in Supabase dashboard
+
+#### **1.3 Post-Signup Hook (1 hour)**
+- [ ] Write `handle_new_user()` trigger function (SQL above)
 - [ ] Attach trigger to `auth.users` INSERT
 - [ ] Test: signup should auto-create profile + settings
 
-#### **Step 1.4: Implement RLS Policies** (2 hours)
+#### **1.4 RLS Policies (2 hours)**
 - [ ] Enable RLS on all tables
-- [ ] Write policies for profiles, user_settings, companies, clusters
-- [ ] Deploy policies to Supabase
-- [ ] **Test with two users** - verify cross-user access fails
+- [ ] Deploy policies for profiles, user_settings, companies, clusters, ads
+- [ ] **Test with two users** - verify cross-user access blocked
 
-**Choose Your Path:**
+---
 
-**Path A: Full Supabase Migration**
-- [ ] Export existing data from current PostgreSQL
-- [ ] Update Drizzle connection to use `POSTGRES_URL` from Vercel
-- [ ] Import/migrate existing data
-- [ ] Add FK constraints to `profiles.id`
-- [ ] Test all existing queries work
+### **Phase 2: Authentication Core** (2-3 days)
 
-**Path B: Auth-Only (Easier, Recommended for MVP)**
-- [ ] Keep existing PostgreSQL for app data
-- [ ] Use Supabase connection for auth queries only
-- [ ] No FK constraints yet (enforce in code)
-- [ ] Add FKs later when fully migrating
+#### **2.1 Supabase Client Setup (1 hour)**
+- [ ] Install `@supabase/ssr`
+- [ ] Create server client (`src/lib/supabase/server.ts`)
+- [ ] Create browser client (`src/lib/supabase/client.ts`)
+- [ ] Create middleware client for auth checks
 
-### **Phase 2: Auth Package Setup** (1 hour)
-- [ ] Install `@supabase/ssr` (Next.js 13+ App Router support)
-- [ ] Create Supabase client utilities
-  - Server-side client
-  - Client-side client
-  - Middleware client
-- [ ] Set up Supabase client helpers
+#### **2.2 Signup Flow (4 hours)**
+- [ ] Create `/signup` page
+- [ ] Form validation (email, password, confirm password)
+- [ ] Call `supabase.auth.signUp()`
+- [ ] Show "Check your email" success message
+- [ ] Handle errors gracefully
 
-### **Phase 3: Core Authentication** (2-3 days)
-- [ ] Implement signup flow
-  - Email + password validation
-  - Use Supabase Auth signup
-  - Email verification (Supabase handles)
-  - Create user record
-- [ ] Implement login flow
-  - Email + password
-  - Supabase session management
-  - Redirect to dashboard
-- [ ] Implement logout
-  - Clear Supabase session
-  - Clear cookies
-- [ ] Update AuthGuard component
-  - Check Supabase session
-  - Redirect to login if needed
-- [ ] Create auth context/hooks for client-side
-  - useAuth hook
-  - useUser hook
-  - User state management
+#### **2.3 Login Flow (3 hours)**
+- [ ] Create `/login` page
+- [ ] Form validation
+- [ ] Call `supabase.auth.signInWithPassword()`
+- [ ] Redirect to dashboard on success
+- [ ] Handle errors (rate limiting, invalid credentials)
 
-### **Phase 4: Password Management** (1 day)
-- [ ] Implement "Forgot Password" flow
-  - Use Supabase resetPasswordForEmail()
-  - Customize email template (Supabase dashboard)
-- [ ] Implement "Reset Password" page
-  - Handle token from email
-  - Use Supabase updateUser()
-  - Auto-invalidates old sessions
-- [ ] Implement "Change Password" (in profile)
-  - Require current password
-  - Update via Supabase
+#### **2.4 Logout (1 hour)**
+- [ ] Add logout button to dashboard
+- [ ] Call `supabase.auth.signOut()`
+- [ ] Redirect to login page
 
-### **Phase 5: UI/UX Pages** (2-3 days)
-- [ ] Create login page (`/login`)
-  - Beautiful design (based on your reference)
-  - Email + password fields
-  - "Forgot password?" link
-  - "Sign up" link
-  - Loading states, error handling
-- [ ] Create signup page (`/signup`)
-  - Full name, email, password
-  - Password strength indicator
-  - Terms acceptance
-  - "Login" link
-- [ ] Create forgot password page (`/forgot-password`)
-- [ ] Create reset password page (`/reset-password`)
-- [ ] Create email verification success page
-- [ ] Make all pages mobile-responsive
+#### **2.5 Auth Guard (2 hours)**
+- [ ] Update middleware to check Supabase session
+- [ ] Redirect unauthenticated users to `/login`
+- [ ] Allow access to public routes (login, signup, forgot-password)
 
-### **Phase 6: Security & Polish** (1-2 days)
-- [ ] Configure Supabase Auth settings
-  - Session duration
-  - Email templates
-  - Redirect URLs
-  - Social providers (if needed)
-- [ ] Add rate limiting (Supabase has built-in)
-- [ ] Configure Row Level Security (RLS) policies
-- [ ] Email notifications for security events
-- [ ] Security headers (CSP, etc.)
-- [ ] Add loading and error states
+---
 
-### **Phase 7: Data Migration** (if Path A) (4-6 hours)
-- [ ] Create migration script
-- [ ] Backup current database
-- [ ] Test migration on staging
-- [ ] Run production migration
-- [ ] Verify data integrity
-- [ ] Update existing `userId` references
+### **Phase 3: Password Management** (1 day)
 
-### **Phase 8: Testing** (1-2 days)
+#### **3.1 Forgot Password (3 hours)**
+- [ ] Create `/forgot-password` page
+- [ ] Email input + validation
+- [ ] Call `supabase.auth.resetPasswordForEmail()`
+- [ ] Show generic success message (no account enumeration)
 
-#### **Functional Testing**
-- [ ] Test signup flow (email verification)
-- [ ] Test login flow (various devices)
+#### **3.2 Reset Password (3 hours)**
+- [ ] Create `/reset-password` page (handles token from email)
+- [ ] New password + confirm password fields
+- [ ] Call `supabase.auth.updateUser({ password })`
+- [ ] Redirect to login with success message
+
+#### **3.3 Change Password (2 hours)**
+- [ ] Add "Change Password" section in profile settings
+- [ ] Require current password (re-authentication)
+- [ ] Update via `supabase.auth.updateUser()`
+- [ ] Rotate session on success
+
+---
+
+### **Phase 4: UI/UX Polish** (2-3 days)
+
+#### **4.1 Login Page Design (4 hours)**
+- [ ] Implement design (based on reference: minimal, modern, Apple-style)
+- [ ] Email + password fields
+- [ ] "Forgot password?" link
+- [ ] "Sign up" link
+- [ ] Loading states, error messages
+- [ ] Mobile-responsive
+
+#### **4.2 Signup Page Design (4 hours)**
+- [ ] Full name, email, password fields
+- [ ] Password strength indicator
+- [ ] "Show password" toggle
+- [ ] Terms & conditions checkbox
+- [ ] "Login" link
+- [ ] Mobile-responsive
+
+#### **4.3 Password Reset Pages (3 hours)**
+- [ ] Style `/forgot-password` (clean, minimal)
+- [ ] Style `/reset-password` (clear instructions)
+- [ ] Email verification success page
+- [ ] Error states
+
+#### **4.4 Email Templates (1 hour)**
+- [ ] Review Supabase default templates
+- [ ] Customize if needed (logo, colors) in Supabase dashboard
+
+---
+
+### **Phase 5: Security Hardening** (1-2 days)
+
+#### **5.1 Supabase Auth Config (2 hours)**
+- [ ] Set session duration to 7 days
+- [ ] Enable email verification requirement
+- [ ] Configure redirect URLs (production + preview)
+- [ ] Set SITE_URL
+- [ ] Review password requirements
+
+#### **5.2 Rate Limiting (2 hours)**
+- [ ] Verify Supabase rate limits are active
+- [ ] Add custom rate limiting for sensitive endpoints (if needed)
+- [ ] Test: 5 failed logins → account temporarily locked
+
+#### **5.3 Security Headers (1 hour)**
+- [ ] Add CSP, HSTS, X-Frame-Options to `next.config.ts`
+- [ ] Test with https://securityheaders.com
+
+#### **5.4 Error Copy Review (1 hour)**
+- [ ] Audit all error messages
+- [ ] Ensure no account enumeration leaks
+- [ ] Generic messages: "If that email exists..."
+
+---
+
+### **Phase 6: Testing** (1-2 days)
+
+#### **6.1 Functional Tests (4 hours)**
+- [ ] Test signup → verify email → login
 - [ ] Test password reset flow
-- [ ] Test session management
-- [ ] Test post-signup hook (profile + settings creation)
+- [ ] Test multi-device sessions
+- [ ] Test logout behavior
 
-#### **Security Testing (CRITICAL)**
-- [ ] **RLS Cross-User Tests:**
-  - [ ] User A creates company, User B cannot access it
-  - [ ] User A creates cluster, User B cannot access it
-  - [ ] User A cannot update User B's profile
-  - [ ] User A cannot view User B's settings
-- [ ] Test session rotation on login
-- [ ] Test session invalidation on password change
-- [ ] Test rate limiting on auth endpoints
+#### **6.2 RLS Security Tests (4 hours)**
+- [ ] Create two test users (User A, User B)
+- [ ] User A creates company → verify User B cannot access
+- [ ] User A creates cluster → verify User B cannot access
+- [ ] Test API endpoints respect RLS
+- [ ] Verify post-signup hook creates profile + settings
 
-#### **Device & Environment Testing**
-- [ ] Test on mobile devices (iOS, Android)
+#### **6.3 Device Testing (2 hours)**
+- [ ] Test on iPhone (Safari)
+- [ ] Test on Android (Chrome)
 - [ ] Test on desktop (Chrome, Safari, Firefox)
-- [ ] Test preview branch deployments (redirect URLs)
-- [ ] Test email delivery (verification, password reset)
 
-#### **Performance & Load Testing**
-- [ ] Load test auth endpoints (signup, login)
-- [ ] Test database performance with RLS enabled
-- [ ] Monitor Supabase connection pooling
+#### **6.4 Email Testing (1 hour)**
+- [ ] Verify email delivery (check spam folder)
+- [ ] Test "resend email" functionality
+- [ ] Test email links work (redirect to correct URL)
 
-### **Phase 9: Deployment** (1 day)
-- [ ] Deploy to preview branch first
-- [ ] Test thoroughly
+---
+
+### **Phase 7: Deployment** (1 day)
+
+#### **7.1 Preview Deployment (2 hours)**
+- [ ] Deploy to preview branch (`feature/user-authentication`)
+- [ ] Test all flows in preview environment
+- [ ] Verify redirect URLs work for preview domain
+
+#### **7.2 Production Deployment (2 hours)**
+- [ ] Merge to `main` branch
 - [ ] Deploy to production
-- [ ] Monitor auth metrics
-- [ ] User acceptance testing
-- [ ] Monitor error logs
+- [ ] Monitor error logs (Vercel, Supabase)
+- [ ] Test production URLs
 
-**Total Estimated Time:**
-- **Path A (Full Migration): 10-12 days**
-- **Path B (Auth Only): 7-9 days**
-
----
-
-## 📝 Next Steps
-
-### **STEP 1: You Set Up Vercel Integration** (5 minutes) 🚀
-
-**Do this now:**
-1. Open your Vercel dashboard
-2. Go to your `gtm-map` project
-3. Click "Storage" tab
-4. Click "Create Database"
-5. Select "Supabase"
-6. Follow the wizard (Vercel handles everything)
-7. Verify all environment variables are set
-
-**That's it!** Vercel will auto-configure everything.
+#### **7.3 Monitoring Setup (2 hours)**
+- [ ] Set up Supabase dashboard monitoring
+- [ ] Configure alerts for auth failures
+- [ ] Monitor signup/login metrics
 
 ---
 
-### **STEP 2: Answer These Key Questions** ❓
-
-#### **Critical Decisions:**
-
-1. **📊 Database Migration Path:**
-   - [ ] **Path A:** Full Supabase (migrate all data) - Clean architecture
-   - [ ] **Path B:** Auth-only (keep existing DB) - Easier transition
-   - **How much data do you have?** (companies, prospects count)
-
-2. **🎨 Design Reference:**
-   - **Please share** the design/screenshot you mentioned
-   - Any brand colors, logo, or design system?
-   - Preferred style: Minimal, Modern, Corporate?
-
-3. **🔐 Email Verification:**
-   - [ ] **Required** before app access (more secure)
-   - [ ] **Optional** (easier onboarding, verify later)
-
-4. **👥 Registration Flow:**
-   - [ ] **Open registration** (anyone can sign up)
-   - [ ] **Invite-only** (require invite code)
-   - [ ] **Waitlist** (request access first)
-
-5. **🌐 Social Authentication:** (Easy to add with Supabase)
-   - [ ] Google Sign-In
-   - [ ] GitHub Sign-In
-   - [ ] LinkedIn Sign-In
-   - [ ] Email/password only (for now)
-
-6. **⏱️ Session Duration:**
-   - [ ] 7 days (recommended)
-   - [ ] 30 days (longer)
-   - [ ] 24 hours (more secure)
-
-7. **📱 Multi-Device Sessions:**
-   - [ ] Yes - Allow login on multiple devices
-   - [ ] No - Logout on new device
-
-8. **📧 Email Templates:**
-   - Use Supabase default templates?
-   - Or customize with your branding?
+**Total Estimated Time: 8-10 days**
 
 ---
 
-### **STEP 3: I'll Implement** (7-12 days)
+## 🚀 **FUTURE: UPGRADE TO ORGANIZATIONS & TIERS**
 
-Once you complete Steps 1 & 2, I will:
+**MVP Scope:** Single-user tenancy (each user owns their data)  
+**Phase 2:** Multi-tenant organizations with billing tiers
 
-1. ✅ Finalize technical specifications
-2. ✅ Create database migration strategy
-3. ✅ Design beautiful UI components (based on your reference)
-4. ✅ Implement all auth flows
-5. ✅ Set up security measures
-6. ✅ Test thoroughly
+### **Why This Architecture Is Future-Proof**
+
+1. ✅ **UUID-based user_id** (compatible with organizations)
+2. ✅ **RLS policies** (easy to extend to memberships)
+3. ✅ **Separate profiles table** (can add organization_id later)
+4. ✅ **Clean data model** (no hardcoded assumptions)
+
+### **Phase 2: Organizations Architecture** (Future)
+
+#### **New Tables**
+
+```typescript
+export const organizations = pgTable('organizations', {
+  id: uuid('id').primaryKey(),
+  name: text('name').notNull(),
+  billingTier: text('billing_tier').default('free'), // free, pro, enterprise
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const memberships = pgTable('memberships', {
+  id: serial('id').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => profiles.id),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  role: text('role').notNull(), // owner, admin, member, viewer
+  joinedAt: timestamp('joined_at').defaultNow(),
+});
+```
+
+#### **Update Data Tables**
+
+```typescript
+export const companies = pgTable('companies', {
+  // ... existing columns
+  userId: uuid('user_id').notNull(), // Keep for backwards compatibility
+  organizationId: uuid('organization_id'), // NEW (nullable for migration)
+});
+```
+
+#### **Updated RLS Policies**
+
+```sql
+-- New policy: Users can access data from their organizations
+CREATE POLICY "Users can view org companies"
+  ON companies FOR SELECT
+  USING (
+    organization_id IN (
+      SELECT organization_id 
+      FROM memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+```
+
+#### **Migration Path (6 Steps)**
+
+1. Add `organizations` and `memberships` tables
+2. Auto-create organization for each existing user
+3. Add `organizationId` column to data tables (nullable)
+4. Populate `organizationId` based on `userId`
+5. Update RLS policies to check membership
+6. Add billing tier logic (Stripe integration)
+
+**Key Point:** No data loss, backward compatible, smooth upgrade path.
+
+---
+
+## 🚨 **FMEA - FAILURE MODE & EFFECTS ANALYSIS**
+
+### **Authentication Failures**
+
+| # | Failure Mode | Potential Cause | Severity (1-10) | Likelihood (1-10) | Risk | Mitigation | Residual Risk |
+|---|--------------|-----------------|---------|----------|------|------------|---------------|
+| **1** | User locked out | Forgot password | 8 | 7 | 56 | Password reset flow, support contact | LOW |
+| **2** | Session hijacking | Stolen cookie | 9 | 5 | 45 | HTTP-only cookies, Secure flag, SameSite, 7-day expiry | MED |
+| **3** | Brute force attack | No rate limiting | 8 | 8 | 64 | Rate limits (5/15min), account lockout, email alerts | LOW |
+| **4** | Email enumeration | Different responses | 6 | 7 | 42 | Generic error messages ("If that email exists...") | LOW |
+| **5** | Token replay attack | Reset token reuse | 9 | 4 | 36 | One-time use tokens, 15-min expiry, store used tokens | LOW |
+
+### **Database Security Failures**
+
+| # | Failure Mode | Potential Cause | Severity | Likelihood | Risk | Mitigation | Residual Risk |
+|---|--------------|-----------------|----------|------------|------|------------|---------------|
+| **6** | Cross-user data access | RLS misconfigured | 10 | 3 | 30 | Explicit RLS tests (User A cannot see User B's data) | LOW |
+| **7** | SQL injection | Unsanitized input | 10 | 2 | 20 | Drizzle ORM, Zod validation, parameterized queries | LOW |
+| **8** | Orphaned data | No cascade delete | 5 | 6 | 30 | Foreign keys with `ON DELETE CASCADE` | LOW |
+
+### **Email & Communication Failures**
+
+| # | Failure Mode | Potential Cause | Severity | Likelihood | Risk | Mitigation | Residual Risk |
+|---|--------------|-----------------|----------|------------|------|------------|---------------|
+| **9** | Verification email not received | Spam filter | 7 | 6 | 42 | "Resend email" button, clear instructions, Supabase deliverability | MED |
+| **10** | Email service outage | Supabase down | 7 | 2 | 14 | Cached sessions, graceful degradation, status monitoring | MED |
+| **11** | Expired reset link | User delayed | 5 | 7 | 35 | Clear expiry time, easy to request new link | LOW |
+
+### **Infrastructure Failures**
+
+| # | Failure Mode | Potential Cause | Severity | Likelihood | Risk | Mitigation | Residual Risk |
+|---|--------------|-----------------|----------|------------|------|------------|---------------|
+| **12** | Missing env vars | Deployment error | 9 | 4 | 36 | Validate on startup, CI/CD checks, Vercel auto-config | LOW |
+| **13** | Supabase outage | Third-party down | 8 | 2 | 16 | Cached sessions, status monitoring, SLA | MED |
+| **14** | Preview branch redirect fail | Wrong URL config | 6 | 3 | 18 | Wildcard redirect URLs (`*.vercel.app/**`) | LOW |
+
+---
+
+## 📝 **NEXT STEPS**
+
+### **✅ ALL QUESTIONS ANSWERED**
+
+1. **Database Path:** Full Supabase (Auth + Postgres) ✅
+2. **Design:** Minimal, modern, Apple-style; neutral greys/black/white ✅
+3. **Email Verification:** Required ✅
+4. **Registration:** Open (anyone can sign up) ✅
+5. **Social Auth:** Email/password only (for now) ✅
+6. **Session Duration:** 7 days ✅
+7. **Multi-Device:** Allowed ✅
+8. **Email Templates:** Supabase defaults ✅
+
+---
+
+### **🚀 IMMEDIATE ACTION ITEMS**
+
+#### **FOR YOU (5 minutes):**
+1. Go to Vercel dashboard → `gtm-map` project → "Storage" tab
+2. Click "Create Database" → Select "Supabase"
+3. Complete wizard (Vercel handles everything)
+4. Share design reference (screenshot/link) for UI styling
+
+#### **FOR ME (8-10 days):**
+Once you complete Vercel setup and share design:
+1. ✅ Migrate database schema to Supabase
+2. ✅ Implement all auth flows (signup, login, password reset)
+3. ✅ Deploy RLS policies and post-signup hook
+4. ✅ Build beautiful UI (based on your design)
+5. ✅ Security hardening (rate limits, headers)
+6. ✅ Comprehensive testing (functional + security)
 7. ✅ Deploy to production
 
 ---
 
-## 🎯 Success Metrics
+## 🎯 **SUCCESS METRICS**
 
-After implementation, we'll measure:
-- **Security:** Zero security incidents, all FMEA mitigations in place
-- **Reliability:** 99.9% auth success rate
-- **Performance:** < 500ms login time (Supabase is fast!)
-- **User Experience:** 
-  - Smooth signup/login flow
-  - Mobile-responsive design
-  - Clear error messages
-  - < 5% support tickets related to auth
-- **Migration Success:** All data migrated without loss (if Path A)
+After implementation:
+- ✅ **Security:** All FMEA mitigations in place, RLS tests pass
+- ✅ **Reliability:** 99.9% auth success rate
+- ✅ **Performance:** < 500ms login time
+- ✅ **UX:** Smooth flows, mobile-responsive, clear error messages
 
 ---
 
-## 🚀 **Ready to Start!**
+## 🎉 **LET'S BUILD THIS!**
 
-**What You Need to Do NOW:**
+**The plan is ready. The architecture is solid. Vercel + Supabase makes this incredibly smooth.**
 
-1. ✅ **Set up Vercel + Supabase integration** (5 mins)
-2. ✅ **Share design reference** 🎨
-3. ✅ **Answer the 8 questions** above
-4. ✅ **Choose Path A or B** for database
-
-**Once you complete these, we'll start building immediately!**
-
-The plan is ready. The FMEA is done. Vercel integration makes this incredibly smooth.
-
-**Let's build this! 🎉**
+**Complete Vercel setup (5 mins) → Share design → I'll implement everything!** 🚀
 
