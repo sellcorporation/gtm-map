@@ -283,31 +283,58 @@ CREATE POLICY no_user_access ON stripe_events
 
 ---
 
-## 2. Proposed Pricing Tiers (MVP)
+## 2. Proposed Pricing Tiers (MVP) - FINALIZED
 
-| Feature | Free | Starter | Pro | Enterprise |
-|---------|------|---------|-----|------------|
-| **Price** | $0 | $29/mo | $99/mo | Custom |
-| **Prospects** | 50 | 500 | Unlimited | Unlimited |
-| **AI Generations/mo** | 10 | 100 | 500 | Unlimited |
-| **Decision Makers/Company** | 3 | 10 | Unlimited | Unlimited |
-| **Clusters** | 5 | Unlimited | Unlimited | Unlimited |
-| **Export (CSV/Brief)** | ✅ | ✅ | ✅ | ✅ |
-| **API Access** | ❌ | ❌ | ✅ | ✅ |
-| **Priority Support** | ❌ | ❌ | ✅ | ✅ |
-| **Custom Integrations** | ❌ | ❌ | ❌ | ✅ |
-| **SLA** | - | - | 99.5% | 99.9% |
+### **Plans Overview**
 
-**Notes**:
-- Free tier = generous MVP limits to let users test the product
-- Starter = Individual consultants, small agencies
-- Pro = Growing teams (pre-organization feature)
-- Enterprise = Custom pricing, contact sales (Phase 2+)
+| Feature | **Free** | **Starter** | **Pro** |
+|---------|----------|-------------|---------|
+| **Price** | £0 | £29/mo | £99/mo |
+| **AI Generations/mo** | 0 (trial: 10) | 50 | 200 |
+| **Prospects** | 50 | 500 | Unlimited |
+| **Decision Makers/Company** | 3 | 10 | Unlimited |
+| **Clusters** | 5 | Unlimited | Unlimited |
+| **Export (CSV/Brief)** | ✅ | ✅ | ✅ |
+| **Queue Priority** | Standard | Standard | Faster |
+| **API Access** | ❌ | ❌ | ❌ (flag ready) |
+| **Priority Support** | ❌ | ❌ | ❌ (future) |
 
-**Stripe Setup**:
-1. Create products in Stripe Dashboard
-2. Create monthly + yearly prices for each tier
-3. Store `stripe_price_id` in `subscription_plans` table
+### **Trial System**
+- **Duration**: 14 days
+- **AI Generations**: 10 total (one-time)
+- **Features**: Full Pro features during trial
+- **Payment**: Card-less (no payment method required)
+- **Expiry**: Auto-downgrade to Free plan
+- **Rationale**: Low-friction onboarding; users experience Pro before deciding
+
+### **Top-Ups (AI Generation Add-Ons)**
+| Top-Up | Price | Notes |
+|--------|-------|-------|
+| +50 AI Generations | £25 | Emergency burst capacity |
+| +100 AI Generations | £45 | Optional larger pack |
+
+**Top-Up Rules**:
+- ✅ Available to Starter/Pro users only
+- ✅ Expires at period end (no carryover)
+- ❌ Not available during trial
+- 💡 **Economics**: Buying 3×£25 = £75 → cheaper to upgrade to Pro (£99)
+
+**Copy for In-Product CTAs**:
+- **80% Warning**: "You've used 40/50 AI generations this month."
+- **Block State (Starter)**: "Limit reached. Add +50 for £25 or upgrade to Pro (200/mo)."
+- **After Top-Up**: "+50 AI generations added. You now have 50 available."
+
+### **Stripe Setup (SKUs)**
+**Prices to Create in Stripe Dashboard**:
+1. `starter_monthly` → £29/mo (recurring, monthly)
+2. `pro_monthly` → £99/mo (recurring, monthly)
+3. `topup_50` → £25 (one-time, payment mode)
+4. `topup_100` → £45 (one-time, payment mode) - optional
+
+**Future (Out of Scope for MVP)**:
+- Annual plans (e.g., Starter £290/year = 2 months free)
+- Enterprise tier (custom pricing)
+- API access (flag exists but disabled)
 
 ---
 
@@ -488,11 +515,57 @@ ALTER TABLE stripe_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY no_user_access ON stripe_events
   FOR SELECT USING (false);
 
--- 8. Seed plans (FREE/STARTER/PRO)
-INSERT INTO subscription_plans (id, name, max_prospects, max_clusters, max_ai_generations_per_month, max_decision_makers_per_company, sort_order, description, features_json) VALUES
-('free', 'Free', 50, 5, 10, 3, 1, 'Perfect for testing and small projects', '["50 prospects", "10 AI generations/mo", "5 clusters", "Basic export"]'::jsonb),
-('starter', 'Starter', 500, -1, 100, 10, 2, 'For individual consultants and small agencies', '["500 prospects", "100 AI generations/mo", "Unlimited clusters", "Full export suite"]'::jsonb),
-('pro', 'Pro', -1, -1, 500, -1, 3, 'For growing teams and power users', '["Unlimited prospects", "500 AI generations/mo", "Unlimited clusters", "API access", "Priority support"]'::jsonb);
+-- 7a. Create AI top-ups table (for one-time generation purchases)
+CREATE TABLE ai_topups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  period_start date NOT NULL,                   -- Month bucket (e.g., '2025-10-01')
+  quantity integer NOT NULL,                    -- 50 or 100
+  stripe_invoice_id text,                       -- Filled by webhook
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE ai_topups ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_topups_read ON ai_topups
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE INDEX ai_topups_user_period_idx ON ai_topups (user_id, period_start);
+
+-- 7b. Create trial usage table (separate from regular usage for card-less trial)
+CREATE TABLE trial_usage (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  ai_generations_used integer NOT NULL DEFAULT 0,
+  trial_started_at timestamptz NOT NULL DEFAULT now(),
+  trial_ends_at timestamptz NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE trial_usage ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_trial_read ON trial_usage
+  FOR SELECT USING (user_id = auth.uid());
+
+-- 7c. Create view for total AI allowance (plan + top-ups)
+CREATE VIEW ai_allowance AS
+SELECT
+  u.user_id,
+  date_trunc('month', now())::date as period_start,
+  p.max_ai_generations_per_month +
+    COALESCE((
+      SELECT sum(quantity)
+      FROM ai_topups t
+      WHERE t.user_id = u.user_id
+        AND t.period_start = date_trunc('month', now())::date
+    ), 0) as allowed
+FROM user_subscriptions u
+JOIN subscription_plans p ON p.id = u.plan_id;
+
+-- 8. Seed plans (FREE/STARTER/PRO) - UPDATED LIMITS
+INSERT INTO subscription_plans (id, name, max_prospects, max_clusters, max_ai_generations_per_month, max_decision_makers_per_company, includes_api_access, includes_priority_support, sort_order, description, features_json) VALUES
+('free', 'Free', 50, 5, 0, 3, false, false, 1, 'Test the product with basic limits', '["50 prospects", "5 clusters", "3 decision makers/company", "Basic export"]'::jsonb),
+('starter', 'Starter', 500, -1, 50, 10, false, false, 2, 'For individual consultants and small agencies', '["500 prospects", "50 AI generations/mo", "10 decision makers/company", "Unlimited clusters", "Standard queue"]'::jsonb),
+('pro', 'Pro', -1, -1, 200, -1, false, false, 3, 'For growing teams and power users', '["Unlimited prospects", "200 AI generations/mo", "Unlimited decision makers", "Unlimited clusters", "Faster queue"]'::jsonb);
+
+-- Note: includes_api_access = false for all plans (MVP) - ready to flip later
 
 -- 9. Seed plan prices (you'll replace stripe_price_id after creating in Stripe Dashboard)
 -- For now, use placeholder 'price_starter_monthly' etc., then update after Stripe setup
@@ -505,12 +578,18 @@ INSERT INTO plan_prices (plan_id, cadence, stripe_price_id, amount, currency) VA
 -- NOTE: After creating products/prices in Stripe, run:
 -- UPDATE plan_prices SET stripe_price_id = 'price_ACTUAL_ID_FROM_STRIPE' WHERE stripe_price_id = 'price_starter_monthly_placeholder';
 
--- 10. Post-signup hook: create free subscription (NO fake Stripe ID)
+-- 10. Post-signup hook: create trial + free subscription (NO fake Stripe ID)
 CREATE OR REPLACE FUNCTION create_user_subscription()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Create free subscription (no Stripe customer yet)
   INSERT INTO user_subscriptions (user_id, plan_id, status)
   VALUES (NEW.id, 'free', 'active');
+  
+  -- Create 14-day trial with 10 AI generations (card-less)
+  INSERT INTO trial_usage (user_id, ai_generations_used, trial_started_at, trial_ends_at)
+  VALUES (NEW.id, 0, now(), now() + interval '14 days');
+  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
@@ -569,48 +648,144 @@ import { supabaseAdmin } from './supabase/service';
 export async function checkLimit(
   userId: string,
   metric: 'ai_generations' | 'prospects' | 'clusters'
-): Promise<{ allowed: boolean; limit: number; used: number; remaining: number }> {
-  // 1. Get user's subscription + plan
+): Promise<{ 
+  allowed: boolean; 
+  limit: number; 
+  used: number; 
+  remaining: number;
+  isTrialing: boolean;
+  warningAt80: boolean;
+  upgradeCTA?: { topup50?: string; topup100?: string; upgradePro?: string };
+}> {
+  const periodStart = getMonthStart();
+  
+  // 1. Check if user is in trial
+  const { data: trial } = await supabaseAdmin
+    .from('trial_usage')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  
+  if (trial && new Date(trial.trial_ends_at) > new Date()) {
+    // User is in active trial (10 AI generations, Pro features)
+    if (metric === 'ai_generations') {
+      const used = trial.ai_generations_used;
+      const limit = 10; // Trial limit
+      const remaining = limit - used;
+      const allowed = remaining > 0;
+      
+      return {
+        allowed,
+        limit,
+        used,
+        remaining,
+        isTrialing: true,
+        warningAt80: used >= 8, // 80% of 10
+        upgradeCTA: allowed ? undefined : { upgradePro: '£99/mo' }
+      };
+    }
+    // During trial, all other metrics use Pro limits
+    return await checkLimitForPlan(userId, 'pro', metric, periodStart, true);
+  }
+  
+  // 2. Not in trial - check regular subscription
   const { data: subscription } = await supabaseAdmin
     .from('user_subscriptions')
-    .select('plan_id, subscription_plans(max_*)')
+    .select('plan_id')
     .eq('user_id', userId)
     .single();
   
   if (!subscription) throw new Error('No subscription found');
   
-  const plan = subscription.subscription_plans;
-  const limit = plan[`max_${metric}_per_month`];
-  
-  if (limit === -1) {
-    // Unlimited
-    return { allowed: true, limit: -1, used: 0, remaining: -1 };
+  return await checkLimitForPlan(userId, subscription.plan_id, metric, periodStart, false);
+}
+
+async function checkLimitForPlan(
+  userId: string,
+  planId: string,
+  metric: 'ai_generations' | 'prospects' | 'clusters',
+  periodStart: string,
+  isTrialing: boolean
+): Promise<any> {
+  if (metric === 'ai_generations') {
+    // Use ai_allowance view (plan + top-ups)
+    const { data: allowance } = await supabaseAdmin
+      .from('ai_allowance')
+      .select('allowed')
+      .eq('user_id', userId)
+      .single();
+    
+    const limit = allowance?.allowed || 0;
+    
+    // Get usage
+    const { data: counter } = await supabaseAdmin
+      .from('usage_counters')
+      .select('used')
+      .eq('user_id', userId)
+      .eq('metric', 'ai_generations')
+      .eq('period_start', periodStart)
+      .single();
+    
+    const used = counter?.used || 0;
+    const remaining = limit - used;
+    const allowed = remaining > 0;
+    const warningAt80 = used >= limit * 0.8;
+    
+    // Generate upgrade CTA if blocked
+    let upgradeCTA;
+    if (!allowed && planId === 'starter') {
+      upgradeCTA = { topup50: '£25', topup100: '£45', upgradePro: '£99/mo' };
+    } else if (!allowed && planId === 'free') {
+      upgradeCTA = { upgradePro: '£99/mo' };
+    }
+    
+    return { allowed, limit, used, remaining, isTrialing, warningAt80, upgradeCTA };
   }
   
-  // 2. Get current period usage
-  const periodStart = getMonthStart(); // '2025-10-01'
-  const { data: counter } = await supabaseAdmin
-    .from('usage_counters')
-    .select('used')
-    .eq('user_id', userId)
-    .eq('metric', metric)
-    .eq('period_start', periodStart)
+  // For other metrics (prospects, clusters), check plan limits
+  const { data: plan } = await supabaseAdmin
+    .from('subscription_plans')
+    .select(`max_${metric}`)
+    .eq('id', planId)
     .single();
   
-  const used = counter?.used || 0;
+  const limit = plan[`max_${metric}`];
+  
+  if (limit === -1) {
+    return { allowed: true, limit: -1, used: 0, remaining: -1, isTrialing, warningAt80: false };
+  }
+  
+  // Count current usage (e.g., from companies or clusters table)
+  // Implementation depends on metric...
+  const used = 0; // TODO: Implement count
   const remaining = limit - used;
   const allowed = remaining > 0;
   
-  return { allowed, limit, used, remaining };
+  return { allowed, limit, used, remaining, isTrialing, warningAt80: false };
 }
 
 export async function incrementUsage(
   userId: string,
-  metric: 'ai_generations' | 'prospects' | 'clusters'
+  metric: 'ai_generations'
 ): Promise<void> {
-  const periodStart = getMonthStart();
+  // 1. Check if user is in trial
+  const { data: trial } = await supabaseAdmin
+    .from('trial_usage')
+    .select('trial_ends_at')
+    .eq('user_id', userId)
+    .single();
   
-  // Atomic upsert: increment if exists, insert if not
+  if (trial && new Date(trial.trial_ends_at) > new Date()) {
+    // Increment trial usage
+    await supabaseAdmin
+      .from('trial_usage')
+      .update({ ai_generations_used: supabaseAdmin.raw('ai_generations_used + 1') })
+      .eq('user_id', userId);
+    return;
+  }
+  
+  // 2. Not in trial - increment regular usage counter
+  const periodStart = getMonthStart();
   await supabaseAdmin.rpc('increment_usage', {
     p_user_id: userId,
     p_metric: metric,
@@ -642,11 +817,42 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 **Webhook Events to Handle** (Critical):
-- `checkout.session.completed` → Create/update Stripe customer, activate subscription
+- `checkout.session.completed` → Handle subscriptions OR top-ups (check mode)
+  - mode='subscription' → Create/update Stripe customer, activate subscription
+  - mode='payment' → Insert into `ai_topups` with quantity (50 or 100)
 - `customer.subscription.updated` → Update plan_id, status, period dates
 - `customer.subscription.deleted` → Set plan_id='free', status='canceled', canceled_at=now()
 - `invoice.paid` → Record in billing_transactions
 - `invoice.payment_failed` → Update status='past_due', send alert
+
+**Top-Up Webhook Handler**:
+```typescript
+// In webhook handler for checkout.session.completed
+if (session.mode === 'payment') {
+  // This is a top-up purchase
+  const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+  const priceId = lineItems.data[0].price?.id;
+  
+  // Map price ID to quantity
+  const quantityMap = {
+    'topup_50_price_id': 50,
+    'topup_100_price_id': 100
+  };
+  
+  const quantity = quantityMap[priceId];
+  const periodStart = new Date();
+  periodStart.setUTCDate(1); // First of month
+  periodStart.setUTCHours(0, 0, 0, 0);
+  
+  // Insert top-up
+  await supabaseAdmin.from('ai_topups').insert({
+    user_id: session.metadata.user_id,
+    period_start: periodStart.toISOString().split('T')[0],
+    quantity,
+    stripe_invoice_id: session.invoice
+  });
+}
+```
 
 **Webhook Security** (Must-Have):
 ```typescript
@@ -1047,15 +1253,34 @@ Ship when **all** of these pass:
 - [ ] `invoice.paid` → transaction recorded
 - [ ] `invoice.payment_failed` → status updated to `past_due`
 
+### **Trial System**
+- [ ] New user gets 14-day trial with 10 AI generations
+- [ ] Trial user has Pro features (unlimited prospects, clusters, DMs)
+- [ ] Trial AI generation limit enforced (10 total)
+- [ ] Trial expires after 14 days → auto-downgrade to Free
+- [ ] No payment method required for trial (card-less)
+- [ ] 80% warning shown at 8 AI generations during trial
+
 ### **Limits - Enforcement**
-- [ ] Free user blocked at 10 AI generations (with upgrade prompt)
+- [ ] Free user blocked at 0 AI generations (no AI) with upgrade prompt
 - [ ] Free user blocked at 50 prospects
 - [ ] Free user blocked at 5 clusters
-- [ ] Starter user blocked at 100 AI generations
+- [ ] Starter user blocked at 50 AI generations
 - [ ] Starter user blocked at 500 prospects
-- [ ] Pro user has no blocks (unlimited where applicable)
+- [ ] Pro user blocked at 200 AI generations
+- [ ] Pro user has unlimited prospects/clusters/DMs
 - [ ] Usage counters increment atomically (no race conditions)
 - [ ] Limits read from `subscription_plans` (no hardcoded values)
+- [ ] 80% warning shown (e.g., 40/50 for Starter)
+
+### **Top-Ups**
+- [ ] Starter/Pro users can purchase +50 for £25
+- [ ] Starter/Pro users can purchase +100 for £45 (optional)
+- [ ] Top-ups not available during trial
+- [ ] Top-up added to allowance immediately after payment
+- [ ] Top-ups expire at period end (no carryover)
+- [ ] Webhook inserts top-up into `ai_topups` table
+- [ ] `ai_allowance` view correctly sums plan + top-ups
 
 ### **Security**
 - [ ] Webhook signatures verified (test with Stripe CLI)
@@ -1186,19 +1411,29 @@ Before implementation, answer these:
 - **Acceptance Criteria**: 40+ checklist items covering all critical paths
 - **Future-Proof**: Supports upgrade to organizations (Phase 2)
 
-### 🎯 **Next: Answer Open Questions**
+### 🎯 **Finalized MVP Decisions** ✅
 
-Before I implement, please confirm your choices for:
-1. **Pricing** ($29/$99 OK? Annual discounts?)
-2. **Free Trial** (14 days or start on Free?)
-3. **Overage Handling** (Hard block or pay-as-you-go?)
-4. **Refund Policy** (Immediate or period-end downgrades?)
-5. **Currency** (GBP-only or multi-currency?)
-6. **Grandfather Policy** (Special plan for you?)
-7. **Enterprise Plan** ("Contact Sales" button for MVP?)
+All specifications confirmed by user:
+
+1. **Pricing**: £29 (Starter), £99 (Pro), GBP-only
+2. **Trial**: 14 days, 10 AI generations, Pro features, card-less, auto-downgrade
+3. **Top-Ups**: +50 for £25, +100 for £45 (optional), expire at period end
+4. **Overage**: Hard block at limit with CTA (80% warning at limit * 0.8)
+5. **Currency**: GBP (UK-first market), Stripe Tax enabled
+6. **No API Access**: Flag ready, set to `false` for all plans (MVP)
+7. **Notifications**: Toggles only (storage), no email service yet
+
+**Economic Nudges**:
+- Starter: 50 AI gens/mo (£29)
+- Pro: 200 AI gens/mo (£99)
+- Top-up math: 3×£25 = £75 → Pro at £99 is better deal
+- Trial: 10 gens (experience Pro) → nudge to paid plan
 
 ---
 
-**Ready to build when you are!** 🚀  
-Just answer the 7 questions above and I'll implement the full MVP.
+## 🚀 **READY TO BUILD**
+
+All specifications locked, architecture validated, economics designed.
+
+**Next**: Implement Phases 0-6 (16-22 hours)
 
