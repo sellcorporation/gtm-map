@@ -15,9 +15,11 @@ const connectionString = process.env.DATABASE_URL;
 const client = postgres(connectionString);
 const db = drizzle(client, { schema });
 
+const profiles = schema.profiles;
+const userSettings = schema.userSettings;
 const companies = schema.companies;
 const clusters = schema.clusters;
 const ads = schema.ads;
 const userSessions = schema.userSessions;
 
-export { db, schema, companies, clusters, ads, userSessions };
+export { db, schema, profiles, userSettings, companies, clusters, ads, userSessions };

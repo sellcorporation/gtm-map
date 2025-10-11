@@ -1,9 +1,35 @@
-import { pgTable, serial, text, integer, json, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, json, timestamp, uuid, boolean } from 'drizzle-orm/pg-core';
 
+// ========================================
+// AUTHENTICATION & USER TABLES
+// ========================================
+
+// Profiles - Extends auth.users with app-specific data
+// Note: auth.users is managed by Supabase Auth
+export const profiles = pgTable('profiles', {
+  id: uuid('id').primaryKey(), // References auth.users(id) with ON DELETE CASCADE
+  fullName: text('full_name'),
+  avatarUrl: text('avatar_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// User Settings - Per-user preferences
+export const userSettings = pgTable('user_settings', {
+  userId: uuid('user_id').primaryKey(), // References profiles(id)
+  timezone: text('timezone').default('Europe/London'),
+  emailNotifications: boolean('email_notifications').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// ========================================
+// LEGACY: USER SESSIONS (may be deprecated)
+// ========================================
 // User sessions and ICP profiles
 export const userSessions = pgTable('user_sessions', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull(), // from auth
+  userId: uuid('user_id').notNull(), // CHANGED: text → uuid
   websiteUrl: text('website_url'),
   icp: json('icp'), // ICP object
   analysisStep: text('analysis_step').default('input'),
@@ -11,9 +37,13 @@ export const userSessions = pgTable('user_sessions', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// ========================================
+// APPLICATION DATA TABLES
+// ========================================
+
 export const companies = pgTable('companies', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull(), // associate with user
+  userId: uuid('user_id').notNull(), // CHANGED: text → uuid, references profiles(id)
   name: text('name').notNull(),
   domain: text('domain').notNull(),
   source: text('source', { enum: ['seed', 'expanded', 'imported'] }).notNull(),
@@ -38,7 +68,7 @@ export const companies = pgTable('companies', {
 
 export const clusters = pgTable('clusters', {
   id: serial('id').primaryKey(),
-  userId: text('user_id').notNull(),
+  userId: uuid('user_id').notNull(), // CHANGED: text → uuid, references profiles(id)
   label: text('label').notNull(),
   criteria: json('criteria').notNull(),
   companyIds: json('company_ids').notNull(),
@@ -52,6 +82,14 @@ export const ads = pgTable('ads', {
   cta: text('cta').notNull(),
 });
 
+// ========================================
+// TYPE EXPORTS
+// ========================================
+
+export type Profile = typeof profiles.$inferSelect;
+export type NewProfile = typeof profiles.$inferInsert;
+export type UserSettings = typeof userSettings.$inferSelect;
+export type NewUserSettings = typeof userSettings.$inferInsert;
 export type Company = typeof companies.$inferSelect;
 export type NewCompany = typeof companies.$inferInsert;
 export type Cluster = typeof clusters.$inferSelect;
