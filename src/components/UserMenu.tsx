@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { User, LogOut, Settings, ChevronDown } from 'lucide-react';
+import { User, LogOut, Settings, ChevronDown, CreditCard } from 'lucide-react';
 
 export default function UserMenu() {
   const router = useRouter();
@@ -77,12 +77,12 @@ export default function UserMenu() {
             <button
               onClick={() => {
                 setIsOpen(false);
-                // You can open a profile settings modal here if needed
+                router.push('/settings/billing');
               }}
               className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
             >
-              <User className="w-4 h-4" />
-              <span>Profile</span>
+              <CreditCard className="w-4 h-4" />
+              <span>Billing & Usage</span>
             </button>
 
             <button
@@ -93,7 +93,7 @@ export default function UserMenu() {
               className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
             >
               <Settings className="w-4 h-4" />
-              <span>Settings</span>
+              <span>AI Settings</span>
             </button>
           </div>
 

@@ -9,6 +9,8 @@ import ICPProfileModal from '@/components/ICPProfileModal';
 import SettingsModal from '@/components/SettingsModal';
 import MarketMapPanel from '@/components/MarketMapPanel';
 import UserMenu from '@/components/UserMenu';
+import { UsageBadge } from '@/components/billing/UsageBadge';
+import { createClient } from '@/lib/supabase/client';
 import type { Company, Cluster, Ad, Customer, ICP } from '@/types';
 
 export default function HomePage() {
@@ -27,12 +29,78 @@ export default function HomePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<string[]>([]);
   const [showAnalysisProgress, setShowAnalysisProgress] = useState(false);
+  
+  // Billing state
+  const [usage, setUsage] = useState<{ used: number; allowed: number; plan: string } | null>(null);
 
   // Load existing data on mount
   useEffect(() => {
     loadExistingData();
     restoreAnalysisState();
+    loadUsageData();
   }, []);
+
+  const loadUsageData = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get subscription and trial info
+      const { data: sub } = await supabase
+        .from('user_subscriptions')
+        .select('plan_id, status')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data: trial } = await supabase
+        .from('trial_usage')
+        .select('generations_used, max_generations, expires_at')
+        .eq('user_id', user.id)
+        .single();
+
+      const now = new Date();
+      const hasActiveTrial = trial && now < new Date(trial.expires_at);
+
+      let used = 0;
+      let allowed = 0;
+      let plan = sub?.plan_id || 'free';
+
+      if (hasActiveTrial) {
+        used = trial.generations_used || 0;
+        allowed = trial.max_generations || 10;
+        plan = 'trial';
+      } else {
+        // Get monthly usage
+        const periodStart = new Date();
+        periodStart.setUTCDate(1);
+        periodStart.setUTCHours(0, 0, 0, 0);
+
+        const { data: usageData } = await supabase
+          .from('usage_counters')
+          .select('used')
+          .eq('user_id', user.id)
+          .eq('metric', 'ai_generations')
+          .eq('period_start', periodStart.toISOString().split('T')[0])
+          .single();
+
+        used = usageData?.used || 0;
+
+        // Get plan limit
+        const { data: planData } = await supabase
+          .from('subscription_plans')
+          .select('max_ai_generations_per_month')
+          .eq('id', plan)
+          .single();
+
+        allowed = planData?.max_ai_generations_per_month || 0;
+      }
+
+      setUsage({ used, allowed, plan });
+    } catch (error) {
+      console.error('Error loading usage data:', error);
+    }
+  };
 
   const loadExistingData = async () => {
     try {
@@ -505,6 +573,7 @@ export default function HomePage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            {usage && <UsageBadge used={usage.used} allowed={usage.allowed} plan={usage.plan} />}
             <UserMenu />
             {extractedICP && (
               <button
