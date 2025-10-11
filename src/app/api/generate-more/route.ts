@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP, generateSearchQueries, extractCompaniesFromSearch } from '@/lib/ai';
 import { db, companies as companiesTable } from '@/lib/db';
+import { getEffectiveEntitlements, incrementUsage } from '@/lib/billing/entitlements';
 import type { Company } from '@/types';
 
 const GenerateMoreRequestSchema = z.object({
@@ -30,6 +33,86 @@ const GenerateMoreRequestSchema = z.object({
 
 async function generateMoreHandler(request: NextRequest) {
   try {
+    // ========== AUTH & BILLING ENFORCEMENT ==========
+    console.log('[GENERATE-MORE] Checking authentication and billing...');
+    
+    // 1. Authenticate user
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[GENERATE-MORE] Not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[GENERATE-MORE] User authenticated:', user.email);
+
+    // 2. Check entitlements
+    const { effectivePlan, isTrialing, allowed, used, thresholds } = 
+      await getEffectiveEntitlements(user.id);
+
+    console.log('[GENERATE-MORE] Entitlements:', {
+      plan: effectivePlan,
+      trial: isTrialing,
+      used,
+      allowed,
+      thresholds,
+    });
+
+    // 3. Check if at hard limit (BLOCK)
+    if (used >= thresholds.blockAt) {
+      console.log('[GENERATE-MORE] BLOCKED: User at limit');
+      const upgradePlan = effectivePlan === 'free' || isTrialing ? 'starter' : 'pro';
+      return NextResponse.json({
+        error: 'Limit reached',
+        message: `You've reached your ${isTrialing ? 'trial' : effectivePlan} limit of ${allowed} AI generations this month.`,
+        code: 'LIMIT_REACHED',
+        usage: { used, allowed },
+        cta: {
+          type: 'upgrade',
+          plan: upgradePlan,
+          url: '/settings/billing',
+        },
+      }, { status: 402 }); // 402 Payment Required
+    }
+
+    // 4. Check if near limit (WARNING)
+    const shouldWarn = used >= thresholds.warnAt;
+    const remaining = allowed - used;
+
+    if (shouldWarn) {
+      console.log(`[GENERATE-MORE] WARNING: User at ${used}/${allowed} (${remaining} left)`);
+    }
+
+    // 5. Increment usage (atomic)
+    console.log('[GENERATE-MORE] Incrementing usage...');
+    try {
+      await incrementUsage(user.id, isTrialing);
+      console.log('[GENERATE-MORE] Usage incremented successfully');
+    } catch (usageError) {
+      console.error('[GENERATE-MORE] Failed to increment usage:', usageError);
+      return NextResponse.json(
+        { error: 'Failed to track usage' },
+        { status: 500 }
+      );
+    }
+
+    // ========== PROCEED WITH GENERATION ==========
     const body = await request.json();
     const { batchSize, maxTotalProspects, icp, existingProspects } = GenerateMoreRequestSchema.parse(body);
     
@@ -42,6 +125,11 @@ async function generateMoreHandler(request: NextRequest) {
         prospects: [],
         message: `Maximum limit of ${maxTotal} prospects reached. Adjust in settings to generate more.`,
         reachedLimit: true,
+        usage: { used: used + 1, allowed }, // Show updated usage
+        warning: shouldWarn ? {
+          message: `You have ${remaining - 1} AI generations left this month.`,
+          remaining: remaining - 1,
+        } : undefined,
       });
     }
     
@@ -215,7 +303,7 @@ async function generateMoreHandler(request: NextRequest) {
                 try {
                   // Insert to database
                   const insertedProspect = await db.insert(companiesTable).values({
-                    userId: 'demo-user', // TODO: Get from auth context
+                    userId: user.id, // Use authenticated user
                     name: candidate.name,
                     domain: candidate.domain,
                     source: 'expanded',
@@ -270,13 +358,29 @@ async function generateMoreHandler(request: NextRequest) {
             sendMessage(`\n🎉 Successfully generated all ${actualBatchSize} requested prospects!`);
           }
           
-          // Send final result
+          // Send final result with usage info
           const result = {
             success: true,
             prospects: newProspects,
             message: `Generated ${newProspects.length} new high-quality prospects`,
             mockData: false,
+            usage: { 
+              used: used + 1, 
+              allowed,
+              plan: effectivePlan,
+              isTrialing,
+            },
+            warning: shouldWarn ? {
+              message: `You have ${remaining - 1} AI generations left this month.`,
+              remaining: remaining - 1,
+              threshold: thresholds.warnAt,
+            } : undefined,
           };
+          
+          if (shouldWarn) {
+            sendMessage(`\n⚠️ Usage Warning: ${remaining - 1} AI generations remaining this month`);
+          }
+          
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ result })}\n\n`));
           controller.close();
           
