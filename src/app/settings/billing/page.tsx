@@ -85,11 +85,33 @@ export default function BillingPage() {
 
   async function openCustomerPortal() {
     try {
-      // In production, you'd call an API endpoint that creates a portal session
-      // For now, direct to Stripe portal (you'll need to implement this endpoint)
-      alert('Customer portal coming soon!');
+      console.log('[BILLING] Opening customer portal...');
+      setUpgrading(true); // Reuse loading state
+      
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to open portal' }));
+        console.error('[BILLING] Portal failed:', errorData);
+        alert(`Failed to open portal: ${errorData.error || 'Unknown error'}`);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('[BILLING] Portal URL:', data.url);
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Failed to create portal session');
+      }
     } catch (error) {
-      console.error('Error opening portal:', error);
+      console.error('[BILLING] Error opening portal:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setUpgrading(false);
     }
   }
 
