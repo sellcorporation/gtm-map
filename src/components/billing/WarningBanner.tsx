@@ -21,9 +21,9 @@ export function WarningBanner({ used, allowed, plan }: WarningBannerProps) {
   if (dismissed) return null;
 
   const remaining = allowed - used;
-  const upgradePlan = plan === 'free' ? 'Starter' : plan === 'starter' ? 'Pro' : null;
-  const upgradeGenerations = plan === 'free' ? 50 : plan === 'starter' ? 200 : null;
-  const upgradePrice = plan === 'free' ? '£29' : plan === 'starter' ? '£99' : null;
+  const upgradePlan = plan === 'trial' || plan === 'free' ? 'Starter' : plan === 'starter' ? 'Pro' : null;
+  const upgradeGenerations = plan === 'trial' || plan === 'free' ? 50 : plan === 'starter' ? 200 : null;
+  const upgradePrice = plan === 'trial' || plan === 'free' ? '£29' : plan === 'starter' ? '£99' : null;
 
   return (
     <div className="bg-amber-50 border-l-4 border-amber-400 p-4">

@@ -576,7 +576,16 @@ export default function HomePage() {
     }
   };
 
-  const shouldShowWarning = usage && usage.allowed > 0 && usage.used >= (usage.allowed - 2);
+  // Calculate warning thresholds based on plan (matching entitlements.ts)
+  const getWarningThreshold = (plan: string, allowed: number) => {
+    if (plan === 'trial') return 8; // Trial: warn at 8/10
+    if (plan === 'starter') return 45; // Starter: warn at 45/50
+    if (plan === 'pro') return 190; // Pro: warn at 190/200
+    return allowed - 2; // Fallback: warn at limit - 2
+  };
+
+  const warnThreshold = usage ? getWarningThreshold(usage.plan, usage.allowed) : 0;
+  const shouldShowWarning = usage && usage.allowed > 0 && usage.used >= warnThreshold;
   const isAtLimit = usage && usage.allowed > 0 && usage.used >= usage.allowed;
 
   return (
