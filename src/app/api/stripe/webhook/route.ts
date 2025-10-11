@@ -144,23 +144,31 @@ export async function POST(request: NextRequest) {
 
         const planId = planData?.plan_id || 'starter';
 
-        // Update subscription
+        // Update subscription (with null checks for timestamps)
+        const updateData: any = {
+          plan_id: planId,
+          status: subscription.status === 'active' ? 'active' : subscription.status,
+          stripe_price_id: priceId,
+        };
+
+        // Only update timestamps if they exist
+        if (subscription.current_period_start) {
+          updateData.current_period_start = new Date(
+            subscription.current_period_start * 1000
+          ).toISOString();
+        }
+        if (subscription.current_period_end) {
+          updateData.current_period_end = new Date(
+            subscription.current_period_end * 1000
+          ).toISOString();
+        }
+        if (subscription.canceled_at) {
+          updateData.canceled_at = new Date(subscription.canceled_at * 1000).toISOString();
+        }
+
         await supabaseAdmin
           .from('user_subscriptions')
-          .update({
-            plan_id: planId,
-            status: subscription.status === 'active' ? 'active' : subscription.status,
-            stripe_price_id: priceId,
-            current_period_start: new Date(
-              subscription.current_period_start * 1000
-            ).toISOString(),
-            current_period_end: new Date(
-              subscription.current_period_end * 1000
-            ).toISOString(),
-            canceled_at: subscription.canceled_at
-              ? new Date(subscription.canceled_at * 1000).toISOString()
-              : null,
-          })
+          .update(updateData)
           .eq('user_id', userId);
 
         console.log('[WEBHOOK] Subscription updated:', userId, subscription.id);
