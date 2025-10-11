@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown, Search, Upload } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, Users, Mail, Phone, Linkedin, ThumbsUp, ThumbsDown, Plus, Edit2, Trash2, Save, X, UserPlus, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import CompanyDetailModal from './CompanyDetailModal';
 import BulkImportModal from './BulkImportModal';
@@ -17,9 +17,11 @@ interface ProspectsTabProps {
   onProspectUpdate: (updatedProspect: Company) => void;
   onGenerateMore?: () => void;
   onMarkAsCustomer?: (prospect: Company) => void;
+  showImportModal?: boolean;
+  setShowImportModal?: (show: boolean) => void;
 }
 
-export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer }: ProspectsTabProps) {
+export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer, showImportModal = false, setShowImportModal }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -29,7 +31,6 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
   const [editedDMData, setEditedDMData] = useState<DecisionMaker | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -898,7 +899,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
     <>
       {/* Competitor Search Progress Panel - Fixed Side Panel */}
       {competitorProgress.length > 0 && (
-        <div className="fixed left-4 top-20 bottom-4 w-80 z-50 flex flex-col bg-white border-2 border-blue-300 rounded-lg shadow-2xl">
+        <div className="fixed left-2 right-2 md:left-4 md:right-auto top-20 bottom-4 w-auto md:w-80 z-50 flex flex-col bg-white border-2 border-blue-300 rounded-lg shadow-2xl">
           <div className="flex items-center justify-between p-3 border-b border-blue-200 bg-blue-50">
             <h3 className="text-sm font-semibold text-blue-900 flex items-center">
               <Search className="h-4 w-4 mr-2 animate-pulse" />
@@ -944,37 +945,17 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         </div>
       )}
 
-      {/* Action Buttons and Search */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import Prospects
-          </button>
-          {addingManualProspect && (
-            <button
-              onClick={startAddingManualProspect}
-              className="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add Manually
-            </button>
-          )}
-        </div>
-        
-        {/* Search Bar */}
+      {/* Search Bar */}
+      <div className="mb-4">
         <div className="relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name, domain, or decision maker..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-10 py-2 w-80 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-10 pr-10 py-2 w-full md:w-80 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -990,36 +971,36 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
       </div>
 
       {/* ICP Score Filter */}
-      <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-medium text-gray-900 flex items-center">
-              ICP Score Filter
-              <span className="ml-2 text-xs text-gray-500">
-                ({sortedProspects.length} of {prospects.length} prospects shown)
+      <div className="mb-4 md:mb-6 p-3 md:p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 md:gap-3 mb-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-xs md:text-sm font-medium text-gray-900 flex flex-wrap items-center gap-1">
+              <span>ICP Score Filter</span>
+              <span className="text-[10px] md:text-xs text-gray-500 whitespace-nowrap">
+                ({sortedProspects.length} of {prospects.length} shown)
               </span>
             </h3>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-[10px] md:text-xs text-gray-500 mt-1">
               Only show prospects with ICP score ≥ {minICPScore}%
             </p>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
             <button
               onClick={() => handleICPScoreChange(0)}
-              className="text-xs text-blue-600 hover:text-blue-800"
+              className="text-[10px] md:text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap px-2 py-1 hover:bg-blue-50 rounded"
             >
               Show All
             </button>
             <button
               onClick={() => handleICPScoreChange(70)}
-              className="text-xs text-blue-600 hover:text-blue-800"
+              className="text-[10px] md:text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap px-2 py-1 hover:bg-blue-50 rounded"
             >
               High Quality (70+)
             </button>
           </div>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <input
             type="range"
             min="0"
@@ -1028,28 +1009,28 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
             onChange={(e) => handleICPScoreChange(parseInt(e.target.value, 10))}
             className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
           />
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-700 min-w-[3rem] text-right">
+          <div className="flex items-center">
+            <span className="text-xs md:text-sm font-medium text-gray-700 min-w-[2.5rem] md:min-w-[3rem] text-right">
               {minICPScore}%
             </span>
           </div>
         </div>
         
         {/* Score ranges legend */}
-        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-          <span>0 (Poor Match)</span>
-          <span>50 (Medium)</span>
-          <span>100 (Perfect Match)</span>
+        <div className="mt-2 md:mt-3 flex items-center justify-between text-[9px] md:text-xs text-gray-500">
+          <span className="whitespace-nowrap">0 (Poor)</span>
+          <span className="whitespace-nowrap">50 (Medium)</span>
+          <span className="whitespace-nowrap">100 (Perfect)</span>
         </div>
         
         {/* Explanation */}
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <p className="text-xs text-blue-800">
+        <div className="mt-3 md:mt-4 p-2 md:p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-[10px] md:text-xs text-blue-800 leading-relaxed">
             <strong>💡 Understanding the Scores:</strong><br/>
             <strong>ICP Score</strong> = How well the prospect matches your Ideal Customer Profile (industry, pain points, size, etc.)<br/>
             <strong>Confidence</strong> = How certain the AI is about its assessment (based on data quality and evidence strength)
           </p>
-          <p className="text-xs text-blue-700 mt-2">
+          <p className="text-[10px] md:text-xs text-blue-700 mt-2 leading-relaxed">
             Example: <strong>ICP 95%, Confidence 80%</strong> = Excellent match, reliable data ✅<br/>
             Example: <strong>ICP 10%, Confidence 75%</strong> = Poor match, but we&apos;re sure about it ❌<br/>
             Example: <strong>ICP 85%, Confidence 30%</strong> = Might be good, verify manually ⚠️
@@ -1273,11 +1254,11 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                   </div>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 md:gap-2">
                   <button
                     onClick={() => openEvidenceModal(prospect)}
-                      className={`text-blue-600 hover:text-blue-800 flex items-center transition-all ${
-                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                      className={`text-blue-600 hover:text-blue-800 flex items-center transition-all p-1 hover:bg-blue-50 rounded ${
+                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-100 md:opacity-0'
                       }`}
                       title="View Evidence"
                   >
@@ -1288,7 +1269,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                       onClick={() => findCompetitors(prospect)}
                       disabled={findingCompetitors.has(prospect.id)}
                       className={`text-purple-600 hover:text-purple-800 flex items-center transition-all p-1 hover:bg-purple-50 rounded ${
-                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-100 md:opacity-0'
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                       title="Find Competitors"
                     >
@@ -1305,7 +1286,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                       <button
                         onClick={() => onMarkAsCustomer(prospect)}
                         className={`text-green-600 hover:text-green-800 flex items-center transition-all p-1 hover:bg-green-50 rounded ${
-                          hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                          hoveredRow === prospect.id ? 'opacity-100' : 'opacity-100 md:opacity-0'
                         }`}
                         title="Mark as Customer"
                       >
@@ -1315,7 +1296,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                     <button
                       onClick={() => handleDeleteCompany(prospect.id)}
                       className={`text-red-600 hover:text-red-800 flex items-center transition-all p-1 hover:bg-red-50 rounded ${
-                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-0'
+                        hoveredRow === prospect.id ? 'opacity-100' : 'opacity-100 md:opacity-0'
                       }`}
                       title="Delete company"
                     >
@@ -1328,26 +1309,26 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
               {/* Expandable Decision Makers Row */}
               {isExpanded && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-4 bg-gray-50">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-medium text-gray-900 flex items-center">
-                          <Users className="h-4 w-4 mr-2" />
+                  <td colSpan={8} className="p-0 md:px-3 md:py-4 bg-gray-50">
+                    <div className="px-3 py-3 md:px-0 md:py-0 w-screen max-w-[100vw] md:w-auto md:max-w-full space-y-2 md:space-y-3 bg-gray-50 box-border">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <h4 className="text-xs md:text-sm font-medium text-gray-900 flex items-center">
+                          <Users className="h-3.5 md:h-4 w-3.5 md:w-4 mr-1.5 md:mr-2" />
                           Decision Makers
                         </h4>
                         {decisionMakers.length === 0 && addingManualDM !== prospect.id && (
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-1.5 md:gap-2">
                             <button
                               onClick={() => generateDecisionMakers(prospect)}
                               disabled={loadingDecisionMakers.has(prospect.id)}
-                              className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                              className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center whitespace-nowrap"
                             >
                               <Users className="h-3 w-3 mr-1" />
                               {loadingDecisionMakers.has(prospect.id) ? 'Searching...' : 'Find via AI'}
                             </button>
                             <button
                               onClick={() => startAddingManualDM(prospect.id)}
-                              className="text-xs px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                              className="text-[10px] md:text-xs px-2 md:px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 whitespace-nowrap"
                             >
                               <UserPlus className="h-3 w-3 inline mr-1" />
                               Add Manually
@@ -1358,17 +1339,17 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                       
                       {/* Manual Input Form */}
                       {addingManualDM === prospect.id && (
-                        <div className="bg-white border-2 border-blue-500 rounded-lg p-4 space-y-3">
+                        <div className="bg-white border-2 border-blue-500 rounded-lg p-2 md:p-4 space-y-2 md:space-y-3">
                           <div className="flex items-center justify-between mb-2">
-                            <h5 className="text-sm font-medium text-gray-900">Add Decision Maker Manually</h5>
+                            <h5 className="text-xs md:text-sm font-medium text-gray-900">Add Decision Maker Manually</h5>
                             <button
                               onClick={cancelAddingManualDM}
                               className="text-gray-400 hover:text-gray-600"
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-3.5 md:h-4 w-3.5 md:w-4" />
                             </button>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-2 md:gap-3">
                             <div>
                               <label className="text-xs text-gray-700 font-medium">Name *</label>
                               <input
@@ -1440,7 +1421,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                       
                       {decisionMakers.length > 0 ? (
                         <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-2 md:gap-3">
                             {decisionMakers.map((dm, idx) => {
                               const isEditing = editingDM?.prospectId === prospect.id && editingDM?.dmIndex === idx;
                               const isMatched = matchedDecisionMakers.get(prospect.id)?.has(dm.name);
@@ -1448,7 +1429,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                               return (
                                 <div 
                                   key={idx} 
-                                  className={`bg-white border rounded-lg p-3 transition-all ${
+                                  className={`bg-white border rounded-lg p-2 md:p-3 transition-all ${
                                     isMatched 
                                       ? 'border-blue-400 ring-2 ring-blue-200 shadow-md' 
                                       : 'border-gray-200'
@@ -1525,51 +1506,51 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                                   ) : (
                                     // View mode
                                     <>
-                                      <div className="flex items-start justify-between mb-2">
+                                      <div className="flex items-start justify-between mb-1.5 md:mb-2">
                                         <div className="flex-1 min-w-0">
-                                          <p className="font-medium text-sm text-gray-900 truncate">{dm.name}</p>
-                                          <p className="text-xs text-gray-500 truncate">{dm.role}</p>
+                                          <p className="font-medium text-xs md:text-sm text-gray-900 truncate">{dm.name}</p>
+                                          <p className="text-[10px] md:text-xs text-gray-500 truncate">{dm.role}</p>
                                         </div>
-                                        <div className="flex items-center gap-1 ml-2">
+                                        <div className="flex items-center gap-0.5 md:gap-1 ml-2 flex-shrink-0">
                                           <button
                                             onClick={() => updateDecisionMakerQuality(prospect, idx, 'good')}
-                                            className={`p-1 rounded transition-colors ${
+                                            className={`p-0.5 md:p-1 rounded transition-colors ${
                                               dm.quality === 'good' 
                                                 ? 'text-green-600 bg-green-50' 
                                                 : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
                                             }`}
                                             title="Mark as relevant and accurate"
                                           >
-                                            <ThumbsUp className="h-3.5 w-3.5" />
+                                            <ThumbsUp className="h-3 md:h-3.5 w-3 md:w-3.5" />
                                           </button>
                                           <button
                                             onClick={() => updateDecisionMakerQuality(prospect, idx, 'poor')}
-                                            className={`p-1 rounded transition-colors ${
+                                            className={`p-0.5 md:p-1 rounded transition-colors ${
                                               dm.quality === 'poor' 
                                                 ? 'text-red-600 bg-red-50' 
                                                 : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
                                             }`}
                                             title="Mark as incorrect or irrelevant (won't be suggested again)"
                                           >
-                                            <ThumbsDown className="h-3.5 w-3.5" />
+                                            <ThumbsDown className="h-3 md:h-3.5 w-3 md:w-3.5" />
                                           </button>
                                           <button
                                             onClick={() => startEditingDM(prospect, idx)}
-                                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                            className="p-0.5 md:p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                             title="Edit decision maker"
                                           >
-                                            <Edit2 className="h-3.5 w-3.5" />
+                                            <Edit2 className="h-3 md:h-3.5 w-3 md:w-3.5" />
                                           </button>
                                           <button
                                             onClick={() => deleteDecisionMaker(prospect, idx)}
-                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                            className="p-0.5 md:p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                             title="Delete decision maker"
                                           >
-                                            <Trash2 className="h-3.5 w-3.5" />
+                                            <Trash2 className="h-3 md:h-3.5 w-3 md:w-3.5" />
                                           </button>
                                         </div>
                                       </div>
-                                      <div className="mb-2">
+                                      <div className="mb-1.5 md:mb-2">
                                         <select
                                           value={dm.contactStatus}
                                           onChange={(e) => updateDecisionMakerStatus(
@@ -1577,7 +1558,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                                             dm.name,
                                             e.target.value as DecisionMaker['contactStatus']
                                           )}
-                                          className={`text-xs px-2 py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer w-full`}
+                                          className={`text-[10px] md:text-xs px-2 py-0.5 md:py-1 rounded-full font-medium ${getContactStatusColor(dm.contactStatus)} border-0 focus:ring-2 focus:ring-blue-500 cursor-pointer w-full`}
                                         >
                                           <option value="Not Contacted">Not Contacted</option>
                                           <option value="Attempted">Attempted</option>
@@ -1587,23 +1568,23 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                                         </select>
                                       </div>
                                       
-                                      <div className="space-y-1">
+                                      <div className="space-y-0.5 md:space-y-1">
                                         {dm.linkedin && (
                                           <a
                                             href={dm.linkedin}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center text-xs text-blue-600 hover:text-blue-800 truncate"
+                                            className="flex items-center text-[10px] md:text-xs text-blue-600 hover:text-blue-800 truncate"
                                           >
                                             <Linkedin className="h-3 w-3 mr-1 flex-shrink-0" />
                                             <span className="truncate">LinkedIn Profile</span>
                                           </a>
                                         )}
                                         {dm.email && (
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-1 md:gap-2">
                                             <a
                                               href={`mailto:${dm.email}`}
-                                              className="flex items-center text-xs text-gray-600 hover:text-gray-800 truncate"
+                                              className="flex items-center text-[10px] md:text-xs text-gray-600 hover:text-gray-800 truncate min-w-0"
                                             >
                                               <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
                                               <span className="truncate">{dm.email}</span>
@@ -1618,7 +1599,7 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                                         {dm.phone && (
                                           <a
                                             href={`tel:${dm.phone}`}
-                                            className="flex items-center text-xs text-gray-600 hover:text-gray-800 truncate"
+                                            className="flex items-center text-[10px] md:text-xs text-gray-600 hover:text-gray-800 truncate"
                                           >
                                             <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
                                             <span className="truncate">{dm.phone}</span>
@@ -1631,18 +1612,18 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                               );
                             })}
                           </div>
-                          <div className="mt-3 flex justify-center gap-2">
+                          <div className="mt-2 md:mt-3 flex flex-col sm:flex-row justify-start gap-1.5 md:gap-2">
                             <button
                               onClick={() => generateDecisionMakers(prospect)}
                               disabled={loadingDecisionMakers.has(prospect.id)}
-                              className="text-xs px-4 py-2 bg-white border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                              className="text-[10px] md:text-xs px-3 md:px-4 py-1.5 md:py-2 bg-white border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center whitespace-nowrap"
                             >
                               <Users className="h-3 w-3 mr-1" />
                               {loadingDecisionMakers.has(prospect.id) ? 'Searching...' : 'Find More via AI'}
                             </button>
                             <button
                               onClick={() => startAddingManualDM(prospect.id)}
-                              className="text-xs px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center"
+                              className="text-[10px] md:text-xs px-3 md:px-4 py-1.5 md:py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center whitespace-nowrap"
                             >
                               <UserPlus className="h-3 w-3 mr-1" />
                               Add Manually
@@ -1792,48 +1773,54 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
       {/* Evidence Modal */}
       {isModalOpen && selectedProspect && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
+        <div 
+          className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 p-2 md:p-4"
+          onClick={closeModal}
+        >
+          <div 
+            className="relative top-2 md:top-20 mx-auto p-3 md:p-5 border w-full md:w-3/4 lg:w-1/2 max-w-2xl shadow-lg rounded-md bg-white mb-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mt-1 md:mt-3">
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <h3 className="text-sm md:text-lg font-medium text-gray-900 pr-2">
                   Evidence for {selectedProspect.name}
                 </h3>
                 <button
                   onClick={closeModal}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 flex-shrink-0"
                 >
                   <span className="sr-only">Close</span>
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="h-5 md:h-6 w-5 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
               
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <strong>Rationale:</strong> {selectedProspect.rationale}
+              <div className="mb-3 md:mb-4 space-y-1 md:space-y-2">
+                <p className="text-xs md:text-sm text-gray-600">
+                  <strong className="font-semibold">Rationale:</strong> {selectedProspect.rationale}
                 </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Confidence:</strong> {selectedProspect.confidence}% | 
-                  <strong> ICP Score:</strong> {selectedProspect.icpScore}
+                <p className="text-xs md:text-sm text-gray-600">
+                  <strong className="font-semibold">Confidence:</strong> {selectedProspect.confidence}% | 
+                  <strong className="font-semibold"> ICP Score:</strong> {selectedProspect.icpScore}
                 </p>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">Evidence URLs:</h4>
+              <div className="space-y-2 md:space-y-4">
+                <h4 className="text-xs md:text-sm font-semibold text-gray-900">Evidence URLs:</h4>
                 {(selectedProspect.evidence as Evidence[]).map((evidence, index) => (
-                  <div key={index} className="border rounded-md p-3">
+                  <div key={index} className="border rounded-md p-2 md:p-3 bg-gray-50">
                     <a
                       href={evidence.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-xs md:text-sm text-blue-600 hover:text-blue-800 font-medium break-all"
                     >
                       {evidence.url}
                     </a>
                     {evidence.snippet && (
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-[10px] md:text-sm text-gray-600 mt-1">
                         {evidence.snippet}
                       </p>
                     )}
@@ -1841,10 +1828,10 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
                 ))}
               </div>
 
-              <div className="mt-6 flex justify-end">
+              <div className="mt-4 md:mt-6 flex justify-end">
                 <button
                   onClick={closeModal}
-                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  className="bg-gray-300 text-gray-700 px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
                   Close
                 </button>
@@ -1875,8 +1862,8 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
       {/* Bulk Import Modal */}
       <BulkImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal?.(false)}
         onImportComplete={handleImportComplete}
       />
     </>

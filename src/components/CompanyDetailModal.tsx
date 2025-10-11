@@ -57,6 +57,21 @@ export default function CompanyDetailModal({
   const [editedEvidenceUrl, setEditedEvidenceUrl] = useState('');
   const [generatingDecisionMakers, setGeneratingDecisionMakers] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'dm' | 'evidence', index: number } | null>(null);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = () => {
+    return JSON.stringify(editedCompany) !== JSON.stringify(company);
+  };
+
+  // Handle clicking outside modal
+  const handleBackdropClick = () => {
+    if (hasUnsavedChanges()) {
+      setShowUnsavedChangesDialog(true);
+    } else {
+      onClose();
+    }
+  };
 
   // Format timestamp for display
   const formatDate = (dateString: string | Date | null | undefined) => {
@@ -464,29 +479,35 @@ export default function CompanyDetailModal({
   const otherCompanies = allCompanies.filter(c => c.id !== company.id && !relatedIds.includes(c.id));
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 p-4">
-      <div className="relative top-8 mx-auto p-5 border w-full max-w-2xl shadow-md rounded-md bg-white mb-8">
+    <div 
+      className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 p-1 md:p-4"
+      onClick={handleBackdropClick}
+    >
+      <div 
+        className="relative top-1 md:top-8 mx-auto p-2.5 md:p-5 border w-full max-w-2xl shadow-md rounded-md bg-white mb-4 md:mb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start justify-between mb-3 md:mb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2 mb-2">
-              <Building2 className="h-5 w-5 text-gray-400 flex-shrink-0" />
+              <Building2 className="h-4 md:h-5 w-4 md:w-5 text-gray-400 flex-shrink-0" />
               <input
                 type="text"
                 value={editedCompany.name}
                 onChange={(e) => setEditedCompany({ ...editedCompany, name: e.target.value })}
-                className="text-lg font-semibold text-gray-900 bg-white border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 flex-1"
+                className="text-base md:text-lg font-semibold text-gray-900 bg-white border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 flex-1"
               />
             </div>
             
             {/* Domain - Inline */}
-            <div className="flex items-center space-x-2 ml-7">
+            <div className="flex items-center space-x-2 ml-6 md:ml-7">
               <input
                 type="text"
                 value={editedCompany.domain}
                 onChange={(e) => setEditedCompany({ ...editedCompany, domain: e.target.value })}
                 placeholder="company.com"
-                className="flex-1 px-2 py-0.5 text-xs border border-gray-200 text-gray-600 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 px-2 py-0.5 text-[11px] md:text-xs border border-gray-200 text-gray-600 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               {editedCompany.domain && editedCompany.domain.toLowerCase() !== 'n/a' && editedCompany.domain.includes('.') && (
                 <a
@@ -496,7 +517,7 @@ export default function CompanyDetailModal({
                   className="text-gray-400 hover:text-blue-600 flex-shrink-0"
                   title="Visit website"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  <ExternalLink className="h-3 md:h-3.5 w-3 md:w-3.5" />
                 </a>
               )}
             </div>
@@ -505,16 +526,17 @@ export default function CompanyDetailModal({
             <button
               onClick={handleRegenerate}
               disabled={isRegenerating}
-              className="mt-2 ml-7 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
+              className="mt-2 ml-6 md:ml-7 inline-flex items-center px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded-md bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
               title="AI will analyze the website and suggest updates"
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRegenerating ? 'animate-spin' : ''}`} />
-              {isRegenerating ? 'Analyzing...' : 'Regenerate via AI'}
+              <RefreshCw className={`h-3 md:h-3.5 w-3 md:w-3.5 mr-1 md:mr-1.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isRegenerating ? 'Analyzing...' : 'Regenerate via AI'}</span>
+              <span className="sm:hidden">{isRegenerating ? 'Analyzing...' : 'Regenerate'}</span>
             </button>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors ml-2"
+            className="text-gray-400 hover:text-gray-600 transition-colors ml-1 md:ml-2"
           >
             <X className="h-5 w-5" />
           </button>
@@ -522,33 +544,33 @@ export default function CompanyDetailModal({
 
         {/* Comparison View - GitHub-style diff */}
         {proposedChanges && (
-          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-yellow-900 flex items-center">
-                <RefreshCw className="h-5 w-5 mr-2" />
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-2 md:p-4 mb-3 md:mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 md:mb-3">
+              <h3 className="text-sm md:text-lg font-semibold text-yellow-900 flex items-center">
+                <RefreshCw className="h-4 md:h-5 w-4 md:w-5 mr-1.5 md:mr-2" />
                 Review Proposed Changes
               </h3>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 md:space-x-2">
                 <button
                   onClick={rejectProposedChanges}
                   disabled={isSaving}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                  className="px-2 md:px-4 py-1 md:py-2 text-[10px] md:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                 >
                   Discard
                 </button>
                 <button
                   onClick={acceptProposedChanges}
                   disabled={isSaving}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+                  className="px-2 md:px-4 py-1 md:py-2 text-[10px] md:text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
                 >
                   {isSaving ? 'Applying...' : 'Accept & Apply'}
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
               {/* Current/Old Values */}
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-2 md:p-3">
                 <h4 className="text-sm font-medium text-red-900 mb-3 flex items-center">
                   <span className="mr-2">−</span> Current Values
                 </h4>
@@ -587,7 +609,7 @@ export default function CompanyDetailModal({
               </div>
 
               {/* New/Proposed Values */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-2 md:p-3">
                 <h4 className="text-sm font-medium text-green-900 mb-3 flex items-center">
                   <span className="mr-2">+</span> Proposed Values
                 </h4>
@@ -633,11 +655,11 @@ export default function CompanyDetailModal({
         )}
 
         {/* Main Content */}
-        <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-2">
+        <div className="space-y-3 md:space-y-4 max-h-[70vh] md:max-h-[75vh] overflow-y-auto pr-1 md:pr-2">
           {/* Metrics Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-gray-50 rounded-md p-2.5">
-              <label className="text-[10px] text-gray-500 block mb-1">ICP Score</label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+            <div className="bg-gray-50 rounded-md p-2 md:p-2.5">
+              <label className="text-[9px] md:text-[10px] text-gray-500 block mb-0.5 md:mb-1">ICP Score</label>
               <input
                 type="number"
                 min="0"
@@ -647,11 +669,11 @@ export default function CompanyDetailModal({
                   const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                   setEditedCompany({ ...editedCompany, icpScore: val });
                 }}
-                className={`text-xl font-bold ${getScoreColor(editedCompany.icpScore)} bg-transparent border-none focus:outline-none w-full`}
+                className={`text-lg md:text-xl font-bold ${getScoreColor(editedCompany.icpScore)} bg-transparent border-none focus:outline-none w-full`}
               />
             </div>
-            <div className="bg-gray-50 rounded-md p-2.5">
-              <label className="text-[10px] text-gray-500 block mb-1">Confidence</label>
+            <div className="bg-gray-50 rounded-md p-2 md:p-2.5">
+              <label className="text-[9px] md:text-[10px] text-gray-500 block mb-0.5 md:mb-1">Confidence</label>
               <div className="flex items-center">
                 <input
                   type="number"
@@ -662,17 +684,17 @@ export default function CompanyDetailModal({
                     const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                     setEditedCompany({ ...editedCompany, confidence: val });
                   }}
-                  className="text-xl font-bold text-gray-700 bg-transparent border-none focus:outline-none w-12"
+                  className="text-lg md:text-xl font-bold text-gray-700 bg-transparent border-none focus:outline-none w-10 md:w-12"
                 />
-                <span className="text-xl font-bold text-gray-700">%</span>
+                <span className="text-lg md:text-xl font-bold text-gray-700">%</span>
               </div>
             </div>
-            <div className="bg-gray-50 rounded-md p-2.5">
-              <label className="text-[10px] text-gray-500 block mb-1">Status</label>
+            <div className="bg-gray-50 rounded-md p-2 md:p-2.5">
+              <label className="text-[9px] md:text-[10px] text-gray-500 block mb-0.5 md:mb-1">Status</label>
               <select
                 value={editedCompany.status}
                 onChange={(e) => setEditedCompany({ ...editedCompany, status: e.target.value as Company['status'] })}
-                className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${getStatusColor(editedCompany.status)} border-0 w-full cursor-pointer`}
+                className={`text-[10px] md:text-[11px] px-1.5 md:px-2 py-0.5 rounded-full font-medium ${getStatusColor(editedCompany.status)} border-0 w-full cursor-pointer`}
               >
                 <option value="New">New</option>
                 <option value="Researching">Researching</option>
@@ -681,15 +703,15 @@ export default function CompanyDetailModal({
                 <option value="Lost">Lost</option>
               </select>
             </div>
-            <div className="bg-gray-50 rounded-md p-2.5">
-              <label className="text-[10px] text-gray-500 block mb-1">Quality</label>
+            <div className="bg-gray-50 rounded-md p-2 md:p-2.5">
+              <label className="text-[9px] md:text-[10px] text-gray-500 block mb-0.5 md:mb-1">Quality</label>
               <select
                 value={editedCompany.quality || 'none'}
                 onChange={(e) => setEditedCompany({ 
                   ...editedCompany, 
                   quality: e.target.value === 'none' ? null : e.target.value as 'excellent' | 'good' | 'poor'
                 })}
-                className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-white border border-gray-200 w-full cursor-pointer"
+                className="text-[10px] md:text-[11px] px-1.5 md:px-2 py-0.5 rounded-full font-medium bg-white border border-gray-200 w-full cursor-pointer"
               >
                 <option value="none">Not Rated</option>
                 <option value="excellent">Excellent</option>
@@ -700,21 +722,21 @@ export default function CompanyDetailModal({
           </div>
 
           {/* Timestamps */}
-          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
-            <div className="flex items-center space-x-1.5">
-              <Calendar className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+          <div className="grid grid-cols-2 gap-2 md:gap-3 pt-2 border-t border-gray-100">
+            <div className="flex items-center space-x-1 md:space-x-1.5">
+              <Calendar className="h-3 md:h-3.5 w-3 md:w-3.5 text-gray-400 flex-shrink-0" />
               <div>
-                <label className="text-[10px] font-medium text-gray-500">Created</label>
-                <div className="text-xs text-gray-700">
+                <label className="text-[9px] md:text-[10px] font-medium text-gray-500">Created</label>
+                <div className="text-[10px] md:text-xs text-gray-700">
                   {formatDate(editedCompany.createdAt)}
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-1.5">
-              <Clock className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+            <div className="flex items-center space-x-1 md:space-x-1.5">
+              <Clock className="h-3 md:h-3.5 w-3 md:w-3.5 text-gray-400 flex-shrink-0" />
               <div>
-                <label className="text-[10px] font-medium text-gray-500">Modified</label>
-                <div className="text-xs text-gray-700">
+                <label className="text-[9px] md:text-[10px] font-medium text-gray-500">Modified</label>
+                <div className="text-[10px] md:text-xs text-gray-700">
                   {formatDate(editedCompany.updatedAt)}
                 </div>
               </div>
@@ -742,7 +764,7 @@ export default function CompanyDetailModal({
                 value={editedCompany.rationale}
                 onChange={(e) => setEditedCompany({ ...editedCompany, rationale: e.target.value })}
                 rows={2}
-                className="w-full mt-2 px-2.5 py-2 border border-gray-200 text-sm text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full mt-2 px-2 md:px-2.5 py-1.5 md:py-2 border border-gray-200 text-xs md:text-sm text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             )}
           </div>
@@ -769,7 +791,7 @@ export default function CompanyDetailModal({
                 onChange={(e) => setEditedCompany({ ...editedCompany, notes: e.target.value })}
                 placeholder="Add notes about this company..."
                 rows={3}
-                className="w-full mt-2 px-2.5 py-2 border border-gray-200 text-sm text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full mt-2 px-2 md:px-2.5 py-1.5 md:py-2 border border-gray-200 text-xs md:text-sm text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             )}
           </div>
@@ -796,30 +818,30 @@ export default function CompanyDetailModal({
                   {tags.map((tag, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                      className="inline-flex items-center px-1.5 md:px-2 py-0.5 rounded-full text-[10px] md:text-xs font-medium bg-blue-100 text-blue-800"
                     >
                       {tag}
                       <button
                         onClick={() => removeTag(tag)}
-                        className="ml-1.5 hover:text-blue-600"
+                        className="ml-1 md:ml-1.5 hover:text-blue-600"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-2.5 md:h-3 w-2.5 md:w-3" />
                       </button>
                     </span>
                   ))}
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex space-x-1.5 md:space-x-2">
                   <input
                     type="text"
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addTag()}
                     placeholder="Add tag..."
-                    className="flex-1 px-2.5 py-1.5 border border-gray-200 text-sm text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 px-2 md:px-2.5 py-1 md:py-1.5 border border-gray-200 text-xs md:text-sm text-gray-900 bg-white rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   />
                   <button
                     onClick={addTag}
-                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                    className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-sm bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap"
                   >
                     Add
                   </button>
@@ -837,21 +859,21 @@ export default function CompanyDetailModal({
                   Decision Makers ({decisionMakers.length})
                 </span>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 md:gap-2">
                 <button
                   onClick={generateDecisionMakers}
                   disabled={generatingDecisionMakers}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
+                  className="inline-flex items-center justify-center px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded-md bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all shadow-sm hover:shadow-md whitespace-nowrap"
                   title="AI will find decision makers from the web"
                 >
-                  <Users className={`h-3.5 w-3.5 mr-1.5 ${generatingDecisionMakers ? 'animate-spin' : ''}`} />
+                  <Users className={`h-3 md:h-3.5 w-3 md:w-3.5 mr-1 md:mr-1.5 ${generatingDecisionMakers ? 'animate-spin' : ''}`} />
                   {generatingDecisionMakers ? 'Finding...' : 'Find via AI'}
                 </button>
                 <button
                   onClick={() => setAddingDecisionMaker(true)}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                  className="inline-flex items-center justify-center px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded-md border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors whitespace-nowrap"
                 >
-                  <Users className="h-3.5 w-3.5 mr-1.5" />
+                  <Users className="h-3 md:h-3.5 w-3 md:w-3.5 mr-1 md:mr-1.5" />
                   Add Manually
                 </button>
               </div>
@@ -1111,7 +1133,7 @@ export default function CompanyDetailModal({
                       if (id) toggleRelatedCompany(id);
                       e.target.value = '';
                     }}
-                    className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-2 md:px-2.5 py-1 md:py-1.5 text-xs md:text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     defaultValue=""
                   >
                     <option value="">Add related company...</option>
@@ -1128,27 +1150,27 @@ export default function CompanyDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+        <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="flex items-center px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded hover:bg-red-50"
+            className="flex items-center px-2 md:px-3 py-1.5 text-[10px] md:text-sm border border-red-200 text-red-600 rounded hover:bg-red-50"
           >
-            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+            <Trash2 className="h-3 md:h-3.5 w-3 md:w-3.5 mr-1 md:mr-1.5" />
             Delete
           </button>
-          <div className="flex space-x-2">
+          <div className="flex space-x-1.5 md:space-x-2">
             <button
               onClick={onClose}
-              className="px-4 py-1.5 text-sm border border-gray-200 text-gray-700 rounded hover:bg-gray-50"
+              className="px-2 md:px-4 py-1.5 text-[10px] md:text-sm border border-gray-200 text-gray-700 rounded hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              className="flex items-center px-2 md:px-4 py-1.5 text-[10px] md:text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              <Save className="h-3.5 w-3.5 mr-1.5" />
+              <Save className="h-3 md:h-3.5 w-3 md:w-3.5 mr-1 md:mr-1.5" />
               {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
@@ -1156,22 +1178,22 @@ export default function CompanyDetailModal({
 
         {/* Delete Confirmation Dialog - Company */}
         {showDeleteConfirm && (
-          <div className="absolute inset-0 bg-gray-900 bg-opacity-50 rounded-lg flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg p-6 max-w-sm">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Company?</h3>
-              <p className="text-sm text-gray-600 mb-4">
+          <div className="absolute inset-0 bg-gray-900 bg-opacity-50 rounded-lg flex items-center justify-center z-10 p-2">
+            <div className="bg-white rounded-lg p-4 md:p-6 max-w-sm w-full mx-2">
+              <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">Delete Company?</h3>
+              <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
                 Are you sure you want to delete {company.name}? This action cannot be undone.
               </p>
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-2 md:space-x-3">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
                 >
                   Delete
                 </button>
@@ -1182,21 +1204,21 @@ export default function CompanyDetailModal({
 
         {/* Delete Confirmation Dialog - Decision Maker / Evidence */}
         {confirmDelete && (
-          <div className="absolute inset-0 bg-gray-900 bg-opacity-50 rounded-lg flex items-center justify-center z-10">
-            <div className="bg-white rounded-lg p-6 max-w-sm">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <div className="absolute inset-0 bg-gray-900 bg-opacity-50 rounded-lg flex items-center justify-center z-10 p-2">
+            <div className="bg-white rounded-lg p-4 md:p-6 max-w-sm w-full mx-2">
+              <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">
                 {confirmDelete.type === 'dm' ? 'Remove Decision Maker?' : 'Delete Evidence?'}
               </h3>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
                 {confirmDelete.type === 'dm' 
                   ? `Are you sure you want to remove ${decisionMakers[confirmDelete.index]?.name || 'this decision maker'}? You can undo this action.`
                   : 'Are you sure you want to delete this evidence link? You can undo this action.'
                 }
               </p>
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-2 md:space-x-3">
                 <button
                   onClick={() => setConfirmDelete(null)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
                 >
                   Cancel
                 </button>
@@ -1208,9 +1230,47 @@ export default function CompanyDetailModal({
                       deleteEvidence(confirmDelete.index);
                     }
                   }}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
                 >
                   {confirmDelete.type === 'dm' ? 'Remove' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Unsaved Changes Dialog */}
+        {showUnsavedChangesDialog && (
+          <div className="absolute inset-0 bg-gray-900 bg-opacity-50 rounded-lg flex items-center justify-center z-10 p-2">
+            <div className="bg-white rounded-lg p-4 md:p-6 max-w-sm w-full mx-2">
+              <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">Unsaved Changes</h3>
+              <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
+                You have unsaved changes. Do you want to save them before closing?
+              </p>
+              <div className="flex justify-end space-x-2 md:space-x-3">
+                <button
+                  onClick={() => {
+                    setShowUnsavedChangesDialog(false);
+                    onClose();
+                  }}
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={() => setShowUnsavedChangesDialog(false)}
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowUnsavedChangesDialog(false);
+                    handleSave();
+                  }}
+                  className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Save
                 </button>
               </div>
             </div>

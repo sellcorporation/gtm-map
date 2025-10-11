@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, FileText, Plus, X } from 'lucide-react';
+import { Download, FileText, Plus, X, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import ProspectsTab from './ProspectsTab';
 import ClustersTab from './ClustersTab';
@@ -30,6 +30,7 @@ export default function MarketMapPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateProgress, setGenerateProgress] = useState<string[]>([]);
   const [showGenerateProgress, setShowGenerateProgress] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const handleExportCSV = async () => {
     try {
@@ -255,31 +256,42 @@ export default function MarketMapPanel({
   return (
     <div className="bg-white rounded-lg shadow overflow-visible">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Market Map</h2>
-          <div className="flex space-x-2">
+      <div className="px-3 md:px-6 py-3 md:py-4 border-b border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900">Market Map</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center px-2 md:px-3 py-1.5 md:py-2 border border-transparent shadow-sm text-xs md:text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Upload className="h-3.5 md:h-4 w-3.5 md:w-4 md:mr-2" />
+              <span className="hidden sm:inline">Import Prospects</span>
+              <span className="sm:hidden ml-1">Import</span>
+            </button>
             <button
               onClick={handleGenerateMore}
               disabled={isGenerating}
-              className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center px-2 md:px-3 py-1.5 md:py-2 border border-transparent shadow-sm text-xs md:text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              {isGenerating ? 'Generating...' : 'Generate More'}
+              <Plus className="h-3.5 md:h-4 w-3.5 md:w-4 md:mr-2" />
+              <span className="hidden sm:inline">{isGenerating ? 'Generating...' : 'Generate More'}</span>
+              <span className="sm:hidden ml-1">{isGenerating ? 'Gen...' : 'Generate'}</span>
             </button>
             <button
               onClick={handleExportCSV}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="inline-flex items-center px-2 md:px-3 py-1.5 md:py-2 border border-gray-300 shadow-sm text-xs md:text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
+              <Download className="h-3.5 md:h-4 w-3.5 md:w-4 md:mr-2" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden ml-1">CSV</span>
             </button>
             <button
               onClick={handleExportBrief}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="inline-flex items-center px-2 md:px-3 py-1.5 md:py-2 border border-gray-300 shadow-sm text-xs md:text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              <FileText className="h-4 w-4 mr-2" />
-              Download .md Brief
+              <FileText className="h-3.5 md:h-4 w-3.5 md:w-4 md:mr-2" />
+              <span className="hidden sm:inline">Download .md Brief</span>
+              <span className="sm:hidden ml-1">Brief</span>
             </button>
           </div>
         </div>
@@ -288,12 +300,12 @@ export default function MarketMapPanel({
 
       {/* Tabs */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 px-6">
+        <nav className="-mb-px flex space-x-4 md:space-x-8 px-3 md:px-6 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as 'prospects' | 'clusters' | 'ads')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              className={`py-3 md:py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -318,6 +330,8 @@ export default function MarketMapPanel({
             onProspectUpdate={onProspectUpdate}
             onGenerateMore={handleGenerateMore}
             onMarkAsCustomer={onMarkAsCustomer}
+            showImportModal={showImportModal}
+            setShowImportModal={setShowImportModal}
           />
         )}
         {activeTab === 'clusters' && (

@@ -15,6 +15,7 @@ interface ICPProfileModalProps {
 export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPProfileModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedICP, setEditedICP] = useState<ICP | null>(icp);
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
   
   // Store raw input strings during edit mode to preserve commas while typing
   const [inputValues, setInputValues] = useState({
@@ -40,6 +41,21 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
   console.log('ICPProfileModal render:', { isOpen, hasICP: !!icp, hasEditedICP: !!editedICP });
   
   if (!isOpen || !icp || !editedICP) return null;
+
+  // Check if there are unsaved changes in edit mode
+  const hasUnsavedChanges = () => {
+    if (!isEditing) return false;
+    return JSON.stringify(editedICP) !== JSON.stringify(icp);
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = () => {
+    if (hasUnsavedChanges()) {
+      setShowUnsavedChangesDialog(true);
+    } else {
+      onClose();
+    }
+  };
 
   const handleSave = () => {
     if (!editedICP) return;
@@ -93,44 +109,45 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center p-2 md:p-4">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-          onClick={onClose}
+          onClick={handleBackdropClick}
         />
         
         {/* Modal */}
         <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <FileText className="h-6 w-6 text-blue-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Ideal Customer Profile</h2>
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              <FileText className="h-5 md:h-6 w-5 md:w-6 text-blue-600" />
+              <h2 className="text-lg md:text-2xl font-bold text-gray-900">ICP</h2>
             </div>
             <div className="flex items-center space-x-2">
               {!isEditing ? (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
+                  className="px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
                 >
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Edit Profile
+                  <Edit2 className="h-3 md:h-4 w-3 md:w-4 mr-1 md:mr-2" />
+                  <span className="hidden sm:inline">Edit Profile</span>
+                  <span className="sm:hidden">Edit</span>
                 </button>
               ) : (
                 <>
                   <button
                     onClick={handleCancel}
-                    className="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                    className="px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSave}
-                    className="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
+                    className="px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
                   >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
+                    <Save className="h-3 md:h-4 w-3 md:w-4 mr-1 md:mr-2" />
+                    Save
                   </button>
                 </>
               )}
@@ -138,13 +155,13 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 md:h-6 w-5 md:w-6" />
               </button>
             </div>
           </div>
 
           {/* Content */}
-          <div className="px-6 py-6 space-y-6">
+          <div className="px-3 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
             {/* Industries */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -277,6 +294,45 @@ export default function ICPProfileModal({ isOpen, onClose, icp, onUpdate }: ICPP
               </p>
             </div>
           </div>
+
+          {/* Unsaved Changes Dialog */}
+          {showUnsavedChangesDialog && (
+            <div className="absolute inset-0 bg-gray-900 bg-opacity-50 rounded-lg flex items-center justify-center z-10 p-2">
+              <div className="bg-white rounded-lg p-4 md:p-6 max-w-sm w-full mx-2">
+                <h3 className="text-base md:text-lg font-medium text-gray-900 mb-2">Unsaved Changes</h3>
+                <p className="text-xs md:text-sm text-gray-600 mb-3 md:mb-4">
+                  You have unsaved changes. Do you want to save them before closing?
+                </p>
+                <div className="flex justify-end space-x-2 md:space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowUnsavedChangesDialog(false);
+                      setIsEditing(false);
+                      onClose();
+                    }}
+                    className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    onClick={() => setShowUnsavedChangesDialog(false)}
+                    className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUnsavedChangesDialog(false);
+                      handleSave();
+                    }}
+                    className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
