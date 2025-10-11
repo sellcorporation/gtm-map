@@ -143,25 +143,147 @@ NEXT_PUBLIC_SUPABASE_URL
 ## 🔐 Security Implementation Plan
 
 ### Password Security
-- **Use bcrypt** (14 rounds) or **Supabase's built-in** (recommended)
-- **Never use SHA-256** for passwords (current implementation is insecure)
-- **Password requirements:**
-  - Minimum 8 characters (configurable)
-  - Mix of uppercase, lowercase, numbers (optional but recommended)
-  - Special characters (optional)
-  - Check against common password lists (optional)
+
+**⚠️ You Don't Handle Passwords - Supabase Does!**
+
+- Supabase Auth handles all password hashing (industry best practices)
+- You **never** see or store plain text passwords
+- Current SHA-256 implementation **will be removed**
+- **Your responsibility:** Password requirements configuration only
+
+**Password Requirements (Configured in Supabase):**
+- Minimum 8 characters (configurable)
+- Optional: Mix of uppercase, lowercase, numbers
+- Optional: Special characters
+- Optional: Check against common password lists (Have I Been Pwned)
+
+**DO NOT implement custom password hashing** - Supabase handles this securely.
 
 ### Session Management
-- **HTTP-only cookies** (already implemented ✅)
-- **Secure flag** in production (already implemented ✅)
-- **SameSite: Lax** (already implemented ✅)
-- **Session duration:** 7 days (configurable) - current 24hrs may be too short
-- **Session refresh:** Auto-refresh before expiry
-- **Concurrent sessions:** Allow multiple devices or single session?
 
-### Database Security
-- **Row Level Security (RLS)** - if using Supabase
-- **API endpoints** always verify userId from session
+**MVP Session Strategy:**
+- **Session duration:** 7 days (configurable in Supabase)
+- **Session rotation:** Rotate session token on every login
+- **Privilege change:** Rotate session on password change or role updates
+- **HTTP-only cookies:** ✅ (Supabase handles)
+- **Secure flag in production:** ✅ (Supabase handles)
+- **SameSite: Lax:** ✅ (Supabase handles)
+- **Auto-refresh:** Supabase SDK auto-refreshes before expiry
+- **Concurrent sessions:** Allow multiple devices (MVP)
+
+**Backlog (Post-MVP):**
+- "Log out of all devices" button in user settings
+- Session management UI (see all active sessions)
+- Revoke specific sessions
+
+### Database Security - Row Level Security (RLS)
+
+**⚠️ CRITICAL: Write and Test Actual RLS Policies**
+
+Don't just "configure RLS" - implement and test specific policies.
+
+#### **RLS Policies to Implement:**
+
+```sql
+-- Enable RLS on tables
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clusters ENABLE ROW LEVEL SECURITY;
+
+-- Profiles: users can only access their own profile
+CREATE POLICY "Users can view own profile"
+  ON public.profiles FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+  ON public.profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+-- User Settings: users can only access their own settings
+CREATE POLICY "Users can view own settings"
+  ON public.user_settings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own settings"
+  ON public.user_settings FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Companies: users can only access their own data
+CREATE POLICY "Users can view own companies"
+  ON public.companies FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own companies"
+  ON public.companies FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own companies"
+  ON public.companies FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own companies"
+  ON public.companies FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Clusters: same pattern
+CREATE POLICY "Users can view own clusters"
+  ON public.clusters FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own clusters"
+  ON public.clusters FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own clusters"
+  ON public.clusters FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own clusters"
+  ON public.clusters FOR DELETE
+  USING (auth.uid() = user_id);
+```
+
+#### **RLS Testing Requirements:**
+
+**Unit Tests:** Test policies programmatically
+```typescript
+// Test: User A cannot access User B's data
+test('RLS prevents cross-user access', async () => {
+  const userA = await signUp('userA@test.com');
+  const userB = await signUp('userB@test.com');
+  
+  // User A creates a company
+  const companyA = await createCompany(userA, 'Company A');
+  
+  // User B tries to access User A's company
+  const result = await fetchCompany(userB, companyA.id);
+  expect(result).toBeNull(); // Should fail due to RLS
+});
+```
+
+**E2E Tests:** Test via actual API calls
+```typescript
+// Test: Attempt to query another user's data
+test('API respects RLS for companies', async () => {
+  const userA = await loginAs('userA@test.com');
+  const userB = await loginAs('userB@test.com');
+  
+  // Create company as User A
+  const companyId = await createCompanyAPI(userA.token, { name: 'Test' });
+  
+  // Try to fetch as User B
+  const response = await fetch(`/api/company/${companyId}`, {
+    headers: { Authorization: `Bearer ${userB.token}` }
+  });
+  
+  expect(response.status).toBe(404); // Or 403 Forbidden
+});
+```
+
+### Other Database Security
+
+- **API endpoints** always verify `userId` from session
 - **Input validation** with Zod (already using ✅)
 - **SQL injection protection** via Drizzle ORM (already using ✅)
 
@@ -184,35 +306,75 @@ NEXT_PUBLIC_SUPABASE_URL
 2. Add `users` table to your schema
 3. Update existing tables with foreign key constraints
 
-### New `users` Table (Required for both paths)
+### ⚠️ **CRITICAL: Do NOT Create a `users` Table**
+
+**Supabase Auth already provides `auth.users`!** Creating your own users table causes:
+- Data drift
+- Sync issues
+- Maintenance pain
+
+### **Instead: Create `profiles` + `user_settings` Tables**
+
 ```typescript
-export const users = pgTable('users', {
-  id: text('id').primaryKey(), // UUID from Supabase Auth
-  email: text('email').notNull().unique(),
-  emailVerified: timestamp('email_verified'),
+// profiles - extends auth.users with app-specific data
+export const profiles = pgTable('profiles', {
+  id: uuid('id').primaryKey(), // References auth.users(id)
   fullName: text('full_name'),
   avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   lastLoginAt: timestamp('last_login_at'),
-  
-  // Supabase Auth handles password hashing, tokens, etc.
-  // No need to store these in your database!
+});
+
+// user_settings - user preferences
+export const userSettings = pgTable('user_settings', {
+  id: serial('id').primaryKey(),
+  userId: uuid('user_id').notNull(), // References auth.users(id)
+  emailNotifications: boolean('email_notifications').default(true),
+  sessionDuration: text('session_duration').default('7d'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 ```
 
-### Update Existing Tables
+**Key Points:**
+- `profiles.id` = `auth.users.id` (1:1 relationship)
+- Email, password, email_verified → Managed by Supabase Auth
+- Your app data → `profiles` and `user_settings`
+
+### Update Existing Tables - **CRITICAL: Change to UUID**
+
+**Current Issue:** Your `userId` is `text`. Supabase Auth uses `uuid`.
+
 ```typescript
-// Add foreign key to existing tables
+// CHANGE existing tables from text to uuid
 export const companies = pgTable('companies', {
   // ... existing columns
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }), // NEW
+  userId: uuid('user_id').notNull(), // CHANGED from text to uuid
+  // Later add: .references(() => profiles.id, { onDelete: 'cascade' })
 });
 
-// Same for clusters, user_sessions, etc.
+export const clusters = pgTable('clusters', {
+  // ... existing columns
+  userId: uuid('user_id').notNull(), // CHANGED from text to uuid
+});
+
+export const userSessions = pgTable('user_sessions', {
+  // ... existing columns
+  userId: uuid('user_id').notNull(), // CHANGED from text to uuid
+});
 ```
+
+**MVP Approach:**
+- ✅ Change column type to `uuid`
+- ✅ Store `auth.users.id` value on write
+- ⚠️ **Don't add FK constraints yet** if keeping app DB separate
+- ✅ Enforce in application code
+- ✅ Add FK constraints later when migrating to Supabase
+
+**⚠️ MVP Scope Note:**
+This is **single-user tenancy** (each user owns their data).  
+**Phase 2** will introduce organizations, team memberships, and shared workspaces.
 
 ### Migration Strategy
 
@@ -233,6 +395,78 @@ export const companies = pgTable('companies', {
 5. ✅ No data migration needed!
 
 **Recommendation:** Path B for **minimal disruption**, Path A for **cleaner architecture**.
+
+---
+
+## 🪝 Post-Signup Hook (CRITICAL)
+
+**Problem:** When a user signs up, `auth.users` is created, but `profiles` and `user_settings` are not.
+
+**Solution:** Implement a **Database Trigger** or **Edge Function** to auto-create related records.
+
+### **Option A: Database Trigger** (Recommended - Simpler)
+
+```sql
+-- Create trigger function
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Create profile
+  INSERT INTO public.profiles (id, full_name, avatar_url)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'avatar_url'
+  );
+  
+  -- Create user settings with defaults
+  INSERT INTO public.user_settings (user_id)
+  VALUES (NEW.id);
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Attach trigger to auth.users
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+```
+
+### **Option B: Supabase Edge Function** (More flexible)
+
+```typescript
+// supabase/functions/on-user-created/index.ts
+import { createClient } from '@supabase/supabase-js';
+
+Deno.serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  const { record } = await req.json(); // auth.users record
+  
+  // Create profile
+  await supabase.from('profiles').insert({
+    id: record.id,
+    full_name: record.raw_user_meta_data?.full_name,
+    avatar_url: record.raw_user_meta_data?.avatar_url,
+  });
+  
+  // Create settings
+  await supabase.from('user_settings').insert({
+    user_id: record.id,
+  });
+  
+  return new Response('OK', { status: 200 });
+});
+```
+
+Then configure webhook in Supabase Dashboard:
+- Auth → Hooks → "insert" on auth.users → Point to Edge Function
+
+**Recommendation:** **Database Trigger** for MVP (simpler, no webhook config needed).
 
 ---
 
@@ -410,23 +644,52 @@ You mentioned liking a marketing page signup design. **Please share:**
 - [ ] Verify all 13 environment variables are set
 - [ ] Access Supabase dashboard via Vercel
 
-### **Phase 1: Database Strategy** (2-4 hours)
+### **Phase 1: Database Strategy & Schema** (4-6 hours)
+
+**CRITICAL: Fix userId type first!**
+
+#### **Step 1.1: Update Schema to UUID** (2 hours)
+- [ ] Change `userId` from `text` to `uuid` in all tables:
+  - `companies.userId`
+  - `clusters.userId`
+  - `user_sessions.userId`
+- [ ] Create migration script for existing data
+- [ ] Test migration on local database
+
+#### **Step 1.2: Create New Tables** (1 hour)
+- [ ] Create `profiles` table (NOT users!)
+  - `id: uuid` (primary key, references `auth.users.id`)
+  - `fullName`, `avatarUrl`, timestamps
+- [ ] Create `user_settings` table
+  - `userId: uuid` (references `auth.users.id`)
+  - Settings fields
+- [ ] Write Drizzle schema definitions
+
+#### **Step 1.3: Set Up Post-Signup Hook** (1 hour)
+- [ ] Write database trigger function `handle_new_user()`
+- [ ] Attach trigger to `auth.users` INSERT
+- [ ] Test: signup should auto-create profile + settings
+
+#### **Step 1.4: Implement RLS Policies** (2 hours)
+- [ ] Enable RLS on all tables
+- [ ] Write policies for profiles, user_settings, companies, clusters
+- [ ] Deploy policies to Supabase
+- [ ] **Test with two users** - verify cross-user access fails
+
 **Choose Your Path:**
 
 **Path A: Full Supabase Migration**
 - [ ] Export existing data from current PostgreSQL
 - [ ] Update Drizzle connection to use `POSTGRES_URL` from Vercel
-- [ ] Create `users` table schema
-- [ ] Update existing tables with proper foreign keys
 - [ ] Import/migrate existing data
+- [ ] Add FK constraints to `profiles.id`
 - [ ] Test all existing queries work
 
-**Path B: Auth-Only (Easier)**
-- [ ] Keep existing PostgreSQL connection for app data
-- [ ] Add Supabase connection for auth only
-- [ ] Create `users` table in Supabase PostgreSQL
-- [ ] Set up userId sync mechanism
-- [ ] Test dual-database setup
+**Path B: Auth-Only (Easier, Recommended for MVP)**
+- [ ] Keep existing PostgreSQL for app data
+- [ ] Use Supabase connection for auth queries only
+- [ ] No FK constraints yet (enforce in code)
+- [ ] Add FKs later when fully migrating
 
 ### **Phase 2: Auth Package Setup** (1 hour)
 - [ ] Install `@supabase/ssr` (Next.js 13+ App Router support)
@@ -507,14 +770,34 @@ You mentioned liking a marketing page signup design. **Please share:**
 - [ ] Update existing `userId` references
 
 ### **Phase 8: Testing** (1-2 days)
+
+#### **Functional Testing**
 - [ ] Test signup flow (email verification)
 - [ ] Test login flow (various devices)
 - [ ] Test password reset flow
 - [ ] Test session management
-- [ ] Test on mobile devices
-- [ ] Test preview branch deployments
-- [ ] Load testing
-- [ ] Security testing
+- [ ] Test post-signup hook (profile + settings creation)
+
+#### **Security Testing (CRITICAL)**
+- [ ] **RLS Cross-User Tests:**
+  - [ ] User A creates company, User B cannot access it
+  - [ ] User A creates cluster, User B cannot access it
+  - [ ] User A cannot update User B's profile
+  - [ ] User A cannot view User B's settings
+- [ ] Test session rotation on login
+- [ ] Test session invalidation on password change
+- [ ] Test rate limiting on auth endpoints
+
+#### **Device & Environment Testing**
+- [ ] Test on mobile devices (iOS, Android)
+- [ ] Test on desktop (Chrome, Safari, Firefox)
+- [ ] Test preview branch deployments (redirect URLs)
+- [ ] Test email delivery (verification, password reset)
+
+#### **Performance & Load Testing**
+- [ ] Load test auth endpoints (signup, login)
+- [ ] Test database performance with RLS enabled
+- [ ] Monitor Supabase connection pooling
 
 ### **Phase 9: Deployment** (1 day)
 - [ ] Deploy to preview branch first
