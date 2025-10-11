@@ -376,6 +376,71 @@ export const userSessions = pgTable('user_sessions', {
 This is **single-user tenancy** (each user owns their data).  
 **Phase 2** will introduce organizations, team memberships, and shared workspaces.
 
+---
+
+## 🔄 **Future: Upgrade Path to Organizations & Tiers**
+
+**MVP Architecture:** Supabase Auth + basic per-user data isolation  
+**Goal:** Easily upgradeable to organizations/teams/billing tiers later
+
+### **Phase 2: Organizations Architecture** (Future)
+
+When you're ready to add organizations:
+
+#### **New Tables:**
+```typescript
+export const organizations = pgTable('organizations', {
+  id: uuid('id').primaryKey(),
+  name: text('name').notNull(),
+  billingTier: text('billing_tier').default('free'), // free, pro, enterprise
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const memberships = pgTable('memberships', {
+  id: serial('id').primaryKey(),
+  userId: uuid('user_id').references(() => profiles.id),
+  organizationId: uuid('organization_id').references(() => organizations.id),
+  role: text('role').notNull(), // owner, admin, member, viewer
+  joinedAt: timestamp('joined_at').defaultNow(),
+});
+```
+
+#### **Update Data Tables:**
+```typescript
+// Add organizationId to existing tables
+export const companies = pgTable('companies', {
+  // ... existing columns
+  userId: uuid('user_id').notNull(), // Keep for backwards compatibility
+  organizationId: uuid('organization_id'), // NEW - nullable for migration
+});
+```
+
+#### **Updated RLS Policies:**
+```sql
+-- New policy: Users can access data from their organizations
+CREATE POLICY "Users can view org companies"
+  ON public.companies FOR SELECT
+  USING (
+    organization_id IN (
+      SELECT organization_id 
+      FROM memberships 
+      WHERE user_id = auth.uid()
+    )
+  );
+```
+
+#### **Migration Path:**
+1. Add new tables (organizations, memberships)
+2. Auto-create organization for each existing user
+3. Add organizationId column to data tables (nullable)
+4. Populate organizationId based on userId
+5. Update RLS policies to check membership
+6. Add billing tier logic
+
+**Key Point:** Current UUID-based architecture makes this upgrade smooth. No data loss, backward compatible.
+
+---
+
 ### Migration Strategy
 
 **Path A (Full Migration):**
