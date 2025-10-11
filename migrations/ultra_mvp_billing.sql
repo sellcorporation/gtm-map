@@ -46,11 +46,11 @@ create table if not exists public.plan_prices (
   updated_at timestamptz default now()
 );
 
--- Seed prices (REPLACE PLACEHOLDERS WITH REAL STRIPE PRICE IDs)
+-- Seed prices (REAL STRIPE PRICE IDs - TEST MODE)
 insert into public.plan_prices (plan_id, cadence, stripe_price_id, amount, currency)
 values
-  ('starter', 'monthly', 'price_STARTER_MONTHLY_REPLACE_ME', 2900, 'gbp'),
-  ('pro', 'monthly', 'price_PRO_MONTHLY_REPLACE_ME', 9900, 'gbp')
+  ('starter', 'monthly', 'price_1SHAhF2NFEywlXB6X3XqISK9', 2900, 'gbp'),
+  ('pro', 'monthly', 'price_1SHAhQ2NFEywlXB6RO5wP7ia', 9900, 'gbp')
 on conflict (plan_id, cadence) do update set
   stripe_price_id = excluded.stripe_price_id,
   amount = excluded.amount,
