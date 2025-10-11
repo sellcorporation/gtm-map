@@ -50,7 +50,8 @@ user_settings {
   timezone: text (default 'Europe/London')
   language: text (default 'en')
   
-  // Notification Preferences
+  // Notification Preferences (consent storage only - no email sending yet)
+  // These are just toggles for future use; this sprint only stores preferences
   email_notifications: boolean (default true)
   weekly_digest: boolean (default true)
   prospect_updates: boolean (default true)
@@ -74,10 +75,39 @@ user_settings {
 /settings
   ├── /profile          → Name, email, avatar, timezone, language
   ├── /preferences      → App behavior, display options
-  ├── /notifications    → Email preferences, digest settings
+  ├── /notifications    → Email preferences toggles (storage only, no email sending yet)
   ├── /billing          → Subscription, usage, payment methods
   └── /api              → API keys, webhooks (Phase 2)
 ```
+
+#### **Notification Scoping Decision** ⚠️
+
+**This Sprint (In Scope)**:
+- ✅ Store notification preferences in `user_settings` (boolean fields)
+- ✅ Build `/settings/notifications` page with toggles
+- ✅ Rely on existing transactional emails:
+  - Supabase Auth: email verification, password reset
+  - Stripe: receipts, invoices, payment failures (configured in Stripe Dashboard)
+
+**Future Sprint (Out of Scope)**:
+- ❌ Digest/alerts system (weekly summaries, usage reminders)
+- ❌ Notification service (queue, worker, templates, scheduling)
+- ❌ Email provider integration (Postmark/Resend/SendGrid)
+- ❌ SPF/DKIM/DMARC setup for custom domain
+- ❌ In-app notifications
+- ❌ Delivery retries, dead-letter queues, audit logs
+
+**Why**: Notifications are orthogonal to billing. Bundling them now increases blast radius (deliverability, consent management, scheduling) without helping the billing MVP ship.
+
+**Future-Proofing**:
+1. **Consent Model**: Boolean fields in `user_settings` are the single source of truth
+2. **Event Contract**: When building notifications, emit events (`user.plan_changed`, `usage.cap_reached`) that the notification service subscribes to
+
+**Acceptance Criteria (Notifications Slice)**:
+- [ ] Toggles exist in `/settings/notifications` and persist to DB
+- [ ] Stripe/Supabase transactional emails work as-is
+- [ ] No marketing/digest emails are sent yet
+- [ ] Docs note: "Notification system deferred to future sprint"
 
 ---
 
