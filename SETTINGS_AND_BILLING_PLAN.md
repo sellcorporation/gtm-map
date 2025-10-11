@@ -954,7 +954,9 @@ export async function POST(request: Request) {
     const customer = await stripe.customers.create({
       email: user.email,
       name: profile?.full_name,
-      metadata: { user_id: user.id },
+      metadata: { 
+        user_id: user.id, // CRITICAL: Store userId for webhook processing
+      },
     });
     
     customerId = customer.id;
@@ -1154,6 +1156,27 @@ Before implementation, answer these:
 8. **API Version** → Changed from future date (`2024-10-28.acacia`) to stable `2023-10-16`
 9. **Explicit RLS Policies** → Separate read/write policies documented
 10. **Comprehensive Guardrails** → "Never do" / "Always do" checklist added
+
+### 🎯 **Validated Against Official Stripe Documentation** (via Context7)
+
+**Sources Reviewed**:
+- [Stripe Node.js SDK](https://github.com/stripe/stripe-node) - Official client library
+- [Stripe Checkout Subscription Sample](https://github.com/stripe-samples/checkout-single-subscription) - Reference implementation
+- [Stripe Best Practices by T3](https://github.com/t3dotgg/stripe-recommendations) - Production patterns
+
+**Key Validations**:
+✅ **Webhook Security**: Raw body + signature verification matches official pattern
+✅ **Idempotency**: Event ID storage aligns with Stripe's recommendations
+✅ **Customer Creation**: Server-side with metadata (userId) matches best practices
+✅ **Checkout Flow**: `automatic_tax: true`, customer parameter, success/cancel URLs correct
+✅ **Event Handling**: Core events (`checkout.session.completed`, `customer.subscription.*`, `invoice.*`) covered
+✅ **API Version**: `2023-10-16` is stable (Stripe Node v12 pins to `2022-11-15` by default)
+
+**Additional Insights from Stripe Docs**:
+- T3 pattern uses KV cache for subscription state (we use PostgreSQL directly via service role - equally valid for our architecture)
+- T3 tracks 18 webhook events (we have 5 critical ones - appropriate for MVP)
+- Stripe CLI `listen --forward-to` for local webhook testing (we'll document this)
+- `metadata: { userId }` on customer creation (we'll add this)
 
 ### 📋 **What's Ready to Ship**
 
