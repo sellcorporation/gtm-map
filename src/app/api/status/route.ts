@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, companies } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 
 const StatusUpdateSchema = z.object({
   id: z.number().int().positive(),
@@ -43,4 +42,4 @@ async function updateStatusHandler(request: NextRequest) {
   }
 }
 
-export const PATCH = requireAuth(updateStatusHandler);
+export const PATCH = updateStatusHandler;

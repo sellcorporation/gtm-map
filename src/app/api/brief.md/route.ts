@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db, companies, clusters, ads } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 
 async function exportBriefHandler() {
   try {
@@ -106,4 +105,4 @@ async function exportBriefHandler() {
   }
 }
 
-export const GET = requireAuth(exportBriefHandler);
+export const GET = exportBriefHandler;

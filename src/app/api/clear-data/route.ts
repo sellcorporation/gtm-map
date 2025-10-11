@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, companies, clusters, ads, userSessions } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 
 async function clearDataHandler(_request: NextRequest) {
   try {
@@ -26,5 +25,5 @@ async function clearDataHandler(_request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(clearDataHandler);
+export const POST = clearDataHandler;
 

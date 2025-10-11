@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAuth } from '@/lib/auth';
 import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP, generateSearchQueries, extractCompaniesFromSearch } from '@/lib/ai';
 import { db, companies as companiesTable } from '@/lib/db';
@@ -315,5 +314,5 @@ async function generateMoreHandler(request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(generateMoreHandler);
+export const POST = generateMoreHandler;
 

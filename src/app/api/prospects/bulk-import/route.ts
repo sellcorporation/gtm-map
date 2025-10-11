@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAuth } from '@/lib/auth';
 import { db, companies } from '@/lib/db';
 import { eq, and } from 'drizzle-orm';
 
@@ -123,5 +122,5 @@ async function bulkImportHandler(request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(bulkImportHandler);
+export const POST = bulkImportHandler;
 

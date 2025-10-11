@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db, companies } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 
 async function exportCSVHandler() {
   try {
@@ -53,4 +52,4 @@ async function exportCSVHandler() {
   }
 }
 
-export const GET = requireAuth(exportCSVHandler);
+export const GET = exportCSVHandler;

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, companies } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 
 const DecisionMakerSchema = z.object({
   name: z.string(),
@@ -112,6 +111,6 @@ async function deleteCompanyHandler(request: NextRequest) {
   }
 }
 
-export const PUT = requireAuth(updateCompanyHandler);
-export const DELETE = requireAuth(deleteCompanyHandler);
+export const PUT = updateCompanyHandler;
+export const DELETE = deleteCompanyHandler;
 

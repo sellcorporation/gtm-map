@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { requireAuth } from '@/lib/auth';
 import type { ICP } from '@/types';
 
 const model = openai('gpt-4o');
@@ -397,5 +396,5 @@ async function regenerateCompanyHandler(request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(regenerateCompanyHandler);
+export const POST = regenerateCompanyHandler;
 

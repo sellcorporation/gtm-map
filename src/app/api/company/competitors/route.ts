@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { requireAuth } from '@/lib/auth';
 import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 import { db, companies as companiesTable } from '@/lib/db';
@@ -320,5 +319,5 @@ Return a JSON array of competitor objects with "name" and optionally "domain".`;
   });
 }
 
-export const POST = requireAuth(findCompetitorsHandler);
+export const POST = findCompetitorsHandler;
 

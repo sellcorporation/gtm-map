@@ -5,7 +5,6 @@ import { db, companies, clusters, ads } from '@/lib/db';
 import { extractICP, findCompetitors, generateAdCopy, analyzeWebsiteAgainstICP } from '@/lib/ai';
 import { searchCompetitors, fetchWebsiteContent as fetchWebsite } from '@/lib/search';
 import { AnalyseRequestSchema } from '@/lib/prompts';
-import { requireAuth } from '@/lib/auth';
 import type { ICP, Competitor, Evidence, Company } from '@/types';
 
 async function fetchWebsiteContent(url: string): Promise<string> {
@@ -752,4 +751,4 @@ async function analyseHandler(request: NextRequest) {
   });
 }
 
-export const POST = requireAuth(analyseHandler);
+export const POST = analyseHandler;

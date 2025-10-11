@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAuth } from '@/lib/auth';
 import { fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 
@@ -61,5 +60,5 @@ async function analyzeCompanyHandler(request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(analyzeCompanyHandler);
+export const POST = analyzeCompanyHandler;
 

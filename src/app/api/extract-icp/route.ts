@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
 import { extractICP } from '@/lib/ai';
-import { requireAuth } from '@/lib/auth';
 
 const ExtractICPSchema = z.object({
   websiteUrl: z.string().min(1, 'Website URL is required'),
@@ -99,5 +98,5 @@ async function extractICPHandler(request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(extractICPHandler);
+export const POST = extractICPHandler;
 

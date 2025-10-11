@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { generateDecisionMakers } from '@/lib/ai';
-import { requireAuth } from '@/lib/auth';
 import { db, companies } from '@/lib/db';
 
 const DecisionMakersRequestSchema = z.object({
@@ -90,5 +89,5 @@ async function generateDecisionMakersHandler(request: NextRequest) {
   }
 }
 
-export const POST = requireAuth(generateDecisionMakersHandler);
+export const POST = generateDecisionMakersHandler;
 

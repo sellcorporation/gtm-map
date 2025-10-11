@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db, companies } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 
-async function getProspectsHandler() {
+export async function GET() {
   try {
     // Fetch all companies from database
     const allCompanies = await db.select().from(companies);
@@ -19,6 +18,4 @@ async function getProspectsHandler() {
     );
   }
 }
-
-export const GET = requireAuth(getProspectsHandler);
 

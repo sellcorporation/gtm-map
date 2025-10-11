@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, companies } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
 import type { DecisionMaker } from '@/types';
 
 const UpdateStatusSchema = z.object({
@@ -72,5 +71,5 @@ async function updateDecisionMakerStatusHandler(request: NextRequest) {
   }
 }
 
-export const PATCH = requireAuth(updateDecisionMakerStatusHandler);
+export const PATCH = updateDecisionMakerStatusHandler;
 
