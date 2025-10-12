@@ -302,7 +302,7 @@ async function analyseHandler(request: NextRequest) {
 
     console.log('[ANALYSE] Incrementing usage...');
     try {
-      await incrementUsage(user.id, isTrialing);
+      await incrementUsage(user.id, isTrialing || false);
       console.log('[ANALYSE] Usage incremented successfully');
     } catch (usageError) {
       console.error('[ANALYSE] Failed to increment usage:', usageError);
