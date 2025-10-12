@@ -93,7 +93,7 @@ async function analyzeCompanyHandler(request: NextRequest) {
     // 5. Increment usage (atomic)
     console.log('[COMPANY-ANALYZE] Incrementing usage...');
     try {
-      await incrementUsage(user.id, isTrialing);
+      await incrementUsage(user.id, isTrialing || false);
       console.log('[COMPANY-ANALYZE] Usage incremented successfully');
     } catch (usageError) {
       console.error('[COMPANY-ANALYZE] Failed to increment usage:', usageError);

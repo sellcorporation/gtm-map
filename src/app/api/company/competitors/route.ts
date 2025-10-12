@@ -121,7 +121,7 @@ async function findCompetitorsHandler(request: NextRequest) {
 
         console.log('[COMPETITORS] Incrementing usage...');
         try {
-          await incrementUsage(user.id, isTrialing);
+          await incrementUsage(user.id, isTrialing || false);
           console.log('[COMPETITORS] Usage incremented successfully');
         } catch (usageError) {
           console.error('[COMPETITORS] Failed to increment usage:', usageError);

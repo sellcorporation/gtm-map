@@ -107,7 +107,7 @@ async function generateMoreHandler(request: NextRequest) {
     // 5. Increment usage (atomic)
     console.log('[GENERATE-MORE] Incrementing usage...');
     try {
-      await incrementUsage(user.id, isTrialing);
+      await incrementUsage(user.id, isTrialing || false);
       console.log('[GENERATE-MORE] Usage incremented successfully');
     } catch (usageError) {
       console.error('[GENERATE-MORE] Failed to increment usage:', usageError);

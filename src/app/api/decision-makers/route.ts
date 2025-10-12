@@ -90,7 +90,7 @@ async function generateDecisionMakersHandler(request: NextRequest) {
     // 5. Increment usage (atomic)
     console.log('[DECISION-MAKERS] Incrementing usage...');
     try {
-      await incrementUsage(user.id, isTrialing);
+      await incrementUsage(user.id, isTrialing || false);
       console.log('[DECISION-MAKERS] Usage incremented successfully');
     } catch (usageError) {
       console.error('[DECISION-MAKERS] Failed to increment usage:', usageError);
