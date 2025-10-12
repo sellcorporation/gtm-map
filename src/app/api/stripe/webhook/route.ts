@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get subscription details
-        const subscription = await stripe.subscriptions.retrieve(
+        const subscription: Stripe.Subscription = await stripe.subscriptions.retrieve(
           session.subscription as string
         );
 
