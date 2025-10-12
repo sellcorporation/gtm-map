@@ -10,7 +10,12 @@ export default function BillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [subscription, setSubscription] = useState<{
+    plan_id: string;
+    status: string;
+    stripe_customer_id?: string;
+    current_period_end?: string;
+  } | null>(null);
   const [usage, setUsage] = useState({ used: 0, allowed: 0 });
   const [upgrading, setUpgrading] = useState(false);
 
@@ -35,6 +40,7 @@ export default function BillingPage() {
     }
     
     loadBillingData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadBillingData() {

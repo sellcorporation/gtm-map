@@ -20,7 +20,6 @@ interface BlockModalProps {
  */
 export function BlockModal({
   isOpen,
-  used,
   allowed,
   plan,
   onClose,
@@ -57,7 +56,7 @@ export function BlockModal({
           </div>
           
           <h3 className="text-lg font-semibold mt-4 text-gray-900">
-            You've reached your limit
+            You&apos;ve reached your limit
           </h3>
           
           <p className="text-sm text-gray-600 mt-2">
@@ -65,14 +64,14 @@ export function BlockModal({
             {plan === 'free' && `You've used all ${allowed} AI generations. Upgrade to continue generating high-quality prospects.`}
             {plan === 'starter' && (
               <>
-                🎉 <strong>Amazing work!</strong> You've used all {allowed} AI generations this month. 
-                You're clearly a power user! Upgrade to Pro for {suggestedGenerations} generations/month and keep the momentum going.
+                🎉 <strong>Amazing work!</strong> You&apos;ve used all {allowed} AI generations this month. 
+                You&apos;re clearly a power user! Upgrade to Pro for {suggestedGenerations} generations/month and keep the momentum going.
               </>
             )}
             {plan === 'pro' && (
               <>
-                🎊 <strong>Incredible!</strong> You've used all {allowed} AI generations this month. 
-                You're a true power user! We're working on a feature to unlock extra AI generations for users like you.
+                🎊 <strong>Incredible!</strong> You&apos;ve used all {allowed} AI generations this month. 
+                You&apos;re a true power user! We&apos;re working on a feature to unlock extra AI generations for users like you.
                 <br /><br />
                 <strong>Want early access?</strong> Send us an email at{' '}
                 <a 
@@ -82,7 +81,7 @@ export function BlockModal({
                 >
                   ionut.furnea@sellcorporation.com
                 </a>
-                {' '}and we'll prioritize your request. Your limit resets next month.
+                {' '}and we&apos;ll prioritize your request. Your limit resets next month.
               </>
             )}
           </p>

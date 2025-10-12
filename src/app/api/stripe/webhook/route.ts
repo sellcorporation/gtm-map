@@ -153,7 +153,14 @@ export async function POST(request: NextRequest) {
         const planId = planData?.plan_id || 'starter';
 
         // Update subscription (with null checks for timestamps)
-        const updateData: any = {
+        const updateData: {
+          plan_id: string;
+          status: string;
+          stripe_price_id: string;
+          current_period_start?: string;
+          current_period_end?: string;
+          updated_at?: string;
+        } = {
           plan_id: planId,
           status: subscription.status === 'active' ? 'active' : subscription.status,
           stripe_price_id: priceId,
