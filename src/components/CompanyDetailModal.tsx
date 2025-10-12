@@ -323,6 +323,24 @@ export default function CompanyDetailModal({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Decision makers API error:', errorData);
+        
+        // Handle 402 Payment Required (limit reached) gracefully
+        if (response.status === 402 && errorData.code === 'LIMIT_REACHED') {
+          const plan = errorData.cta?.plan || 'Starter';
+          const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+          
+          toast.error(errorData.message || 'You have reached your AI generation limit', {
+            duration: 8000,
+            action: {
+              label: `Upgrade to ${planName}`,
+              onClick: () => {
+                window.location.href = '/settings/billing';
+              },
+            },
+          });
+          return; // Exit early, don't throw error
+        }
+        
         throw new Error(errorData.error || 'Failed to generate decision makers');
       }
 

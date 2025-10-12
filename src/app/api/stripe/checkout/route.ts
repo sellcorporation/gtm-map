@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     console.log('[CHECKOUT] Fetching user subscription...');
     const { data: sub, error: subError } = await supabase
       .from('user_subscriptions')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, stripe_subscription_id, plan_id')
       .eq('user_id', user.id)
       .single();
 
@@ -109,6 +109,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[CHECKOUT] ✓ Subscription fetched:', sub ? 'exists' : 'null');
+    console.log('[CHECKOUT] Current plan:', sub?.plan_id);
+    console.log('[CHECKOUT] Stripe subscription ID:', sub?.stripe_subscription_id || 'none');
 
     // ========== Step 7: Get or Create Stripe Customer ==========
     let customerId = sub?.stripe_customer_id;
@@ -166,8 +168,80 @@ export async function POST(request: NextRequest) {
 
     console.log('[CHECKOUT] ✓ Price found:', priceData.stripe_price_id);
 
-    // ========== Step 9: Create Checkout Session ==========
-    console.log('[CHECKOUT] Creating Stripe checkout session...');
+    // ========== Step 9: Check for Existing Subscription (UPGRADE vs NEW) ==========
+    if (sub?.stripe_subscription_id) {
+      console.log('[CHECKOUT] ========== UPGRADE PATH (Existing Subscription) ==========');
+      console.log('[CHECKOUT] Upgrading from:', sub.plan_id, '→', plan);
+      
+      try {
+        // Retrieve current subscription from Stripe
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          sub.stripe_subscription_id
+        );
+        
+        console.log('[CHECKOUT] Current Stripe subscription status:', stripeSubscription.status);
+        
+        if (stripeSubscription.status !== 'active') {
+          console.error('[CHECKOUT] ✗ Subscription not active:', stripeSubscription.status);
+          return NextResponse.json(
+            { error: `Cannot upgrade: subscription is ${stripeSubscription.status}` },
+            { status: 400 }
+          );
+        }
+        
+        // Update the subscription with proration
+        console.log('[CHECKOUT] Updating subscription with proration...');
+        const updatedSubscription = await stripe.subscriptions.update(
+          sub.stripe_subscription_id,
+          {
+            items: [{
+              id: stripeSubscription.items.data[0].id,
+              price: priceData.stripe_price_id,
+            }],
+            proration_behavior: 'always_invoice', // ✅ Immediate prorated charge
+            billing_cycle_anchor: 'unchanged',    // ✅ Keep same billing date
+          }
+        );
+        
+        console.log('[CHECKOUT] ✓ Subscription updated:', updatedSubscription.id);
+        console.log('[CHECKOUT] New price:', priceData.stripe_price_id);
+        console.log('[CHECKOUT] Proration behavior: always_invoice (immediate charge)');
+        console.log('[CHECKOUT] Billing cycle anchor: unchanged');
+        
+        // Update database (webhook will also do this, but do it now for immediate effect)
+        console.log('[CHECKOUT] Updating database...');
+        const { error: updateError } = await supabaseAdmin
+          .from('user_subscriptions')
+          .update({ 
+            plan_id: plan,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id);
+        
+        if (updateError) {
+          console.error('[CHECKOUT] ⚠️  Failed to update database (webhook will retry):', updateError);
+        } else {
+          console.log('[CHECKOUT] ✓ Database updated');
+        }
+        
+        console.log('[CHECKOUT] ========== UPGRADE SUCCESS ==========');
+        
+        // Return success with redirect back to billing page
+        return NextResponse.json({ 
+          url: `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing?upgraded=true&plan=${plan}`,
+          upgraded: true,
+          plan: plan,
+          message: `Successfully upgraded to ${plan}! Your new limit is active immediately.`
+        });
+      } catch (stripeError) {
+        console.error('[CHECKOUT] ✗ Subscription update failed:', stripeError);
+        throw stripeError;
+      }
+    }
+
+    // ========== Step 10: Create Checkout Session (NEW SUBSCRIPTION) ==========
+    console.log('[CHECKOUT] ========== NEW SUBSCRIPTION PATH ==========');
+    console.log('[CHECKOUT] No existing subscription, creating checkout session...');
     try {
       const session = await stripe.checkout.sessions.create({
         customer: customerId,

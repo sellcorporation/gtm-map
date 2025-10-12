@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { User, LogOut, Settings, ChevronDown, CreditCard } from 'lucide-react';
 
-export default function UserMenu() {
+interface UserMenuProps {
+  onOpenSettings?: () => void;
+}
+
+export default function UserMenu({ onOpenSettings }: UserMenuProps = {}) {
   const router = useRouter();
   const [user, setUser] = useState<{ email: string; fullName: string | null } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -88,7 +92,7 @@ export default function UserMenu() {
             <button
               onClick={() => {
                 setIsOpen(false);
-                // You can open settings modal here if needed
+                onOpenSettings?.();
               }}
               className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
             >

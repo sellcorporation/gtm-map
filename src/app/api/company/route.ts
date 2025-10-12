@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { db, companies } from '@/lib/db';
 
 const DecisionMakerSchema = z.object({
@@ -39,6 +41,84 @@ const UpdateCompanySchema = z.object({
 const DeleteCompanySchema = z.object({
   companyId: z.number().int().positive(),
 });
+
+const CreateCompanySchema = z.object({
+  name: z.string().min(1),
+  domain: z.string().min(1),
+  icpScore: z.number().min(0).max(100).optional(),
+  confidence: z.number().min(0).max(100).optional(),
+  rationale: z.string().optional(),
+  notes: z.string().nullable().optional(),
+});
+
+async function createCompanyHandler(request: NextRequest) {
+  try {
+    // Authenticate user
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[COMPANY-CREATE] Not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { name, domain, icpScore, confidence, rationale, notes } = CreateCompanySchema.parse(body);
+    
+    // Save to database
+    const newCompany = await db.insert(companies).values({
+      userId: user.id,
+      name,
+      domain,
+      source: 'expanded',
+      sourceCustomerDomain: null,
+      icpScore: icpScore || 50,
+      confidence: confidence || 50,
+      status: 'New',
+      rationale: rationale || 'Manually added prospect - no AI analysis performed',
+      evidence: [],
+      decisionMakers: null,
+      quality: null,
+      notes: notes || 'Manually added prospect',
+      tags: null,
+      relatedCompanyIds: null,
+    }).returning();
+    
+    console.log('[COMPANY-CREATE] Created company with ID:', newCompany[0].id);
+    
+    return NextResponse.json({ success: true, company: newCompany[0] });
+    
+  } catch (error) {
+    console.error('Company creation error:', error);
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid input data', details: error.issues },
+        { status: 400 }
+      );
+    }
+    
+    return NextResponse.json(
+      { error: 'Failed to create company' },
+      { status: 500 }
+    );
+  }
+}
 
 async function updateCompanyHandler(request: NextRequest) {
   try {
@@ -111,6 +191,7 @@ async function deleteCompanyHandler(request: NextRequest) {
   }
 }
 
+export const POST = createCompanyHandler;
 export const PUT = updateCompanyHandler;
 export const DELETE = deleteCompanyHandler;
 

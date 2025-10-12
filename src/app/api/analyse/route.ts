@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { db, companies, clusters, ads } from '@/lib/db';
 import { extractICP, findCompetitors, generateAdCopy, analyzeWebsiteAgainstICP } from '@/lib/ai';
 import { searchCompetitors, fetchWebsiteContent as fetchWebsite } from '@/lib/search';
 import { AnalyseRequestSchema } from '@/lib/prompts';
+import { getEffectiveEntitlements, incrementUsage } from '@/lib/billing/entitlements';
 import type { ICP, Competitor, Evidence, Company } from '@/types';
 
 async function fetchWebsiteContent(url: string): Promise<string> {
@@ -93,7 +96,7 @@ async function computeICPScore(company: Competitor, icp: ICP): Promise<number> {
   return Math.min(score, 100);
 }
 
-async function createClusters(prospects: Company[], icp: ICP) {
+async function createClusters(prospects: Company[], icp: ICP, userId: string) {
   const clusterMap = new Map<string, number[]>();
   
   // Create multi-dimensional clusters based on ICP score ranges and characteristics
@@ -191,8 +194,6 @@ async function createClusters(prospects: Company[], icp: ICP) {
     const dominantIndustry = Array.from(industryCounts.entries())
       .sort((a, b) => b[1] - a[1])[0]?.[0] || icp.industries[0];
     
-    const userId = 'demo-user'; // TODO: Get from auth context
-    
     const cluster = await db.insert(clusters).values({
       userId,
       label,
@@ -230,15 +231,96 @@ async function createClusters(prospects: Company[], icp: ICP) {
 }
 
 async function analyseHandler(request: NextRequest) {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendMessage = (message: string) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
-      };
+  try {
+    // ========== AUTH & BILLING ENFORCEMENT (BEFORE STREAMING) ==========
+    console.log('[ANALYSE] Checking authentication and billing...');
+    
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
 
-      try {
-        const body = await request.json();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[ANALYSE] Not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[ANALYSE] User authenticated:', user.email);
+
+    const { effectivePlan, isTrialing, allowed, used, thresholds } = 
+      await getEffectiveEntitlements(user.id);
+
+    console.log('[ANALYSE] Entitlements:', {
+      plan: effectivePlan,
+      trial: isTrialing,
+      used,
+      allowed,
+      thresholds,
+    });
+
+    // ========== BLOCK BEFORE STREAMING IF AT LIMIT ==========
+    if (used >= thresholds.blockAt) {
+      console.log('[ANALYSE] BLOCKED: User at limit');
+      const upgradePlan = effectivePlan === 'free' || isTrialing ? 'starter' : 'pro';
+      return NextResponse.json({ 
+        error: `You've reached your ${isTrialing ? 'trial' : effectivePlan} limit of ${allowed} AI generations this month.`,
+        message: `You've reached your ${isTrialing ? 'trial' : effectivePlan} limit of ${allowed} AI generations this month.`,
+        code: 'LIMIT_REACHED',
+        usage: { 
+          used, 
+          allowed,
+          plan: isTrialing ? 'trial' : effectivePlan,
+          isTrialing,
+        },
+        cta: {
+          type: 'upgrade',
+          plan: upgradePlan,
+          url: '/settings/billing',
+        },
+      }, { status: 402 });
+    }
+
+    const shouldWarn = used >= thresholds.warnAt;
+    const remaining = allowed - used;
+
+    if (shouldWarn) {
+      console.log(`[ANALYSE] WARNING: User at ${used}/${allowed} (${remaining} left)`);
+    }
+
+    console.log('[ANALYSE] Incrementing usage...');
+    try {
+      await incrementUsage(user.id, isTrialing);
+      console.log('[ANALYSE] Usage incremented successfully');
+    } catch (usageError) {
+      console.error('[ANALYSE] Failed to increment usage:', usageError);
+      return NextResponse.json({ error: 'Failed to track usage' }, { status: 500 });
+    }
+
+    // ========== PROCEED WITH ANALYSIS (START STREAMING) ==========
+    const userId = user.id; // Use authenticated user's ID
+    const body = await request.json();
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendMessage = (message: string) => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
+        };
+
+        try {
         const { websiteUrl, customers, icp: providedICP, batchSize } = AnalyseRequestSchema.parse(body);
         
         // Use provided batch size or default to 10
@@ -513,7 +595,7 @@ async function analyseHandler(request: NextRequest) {
             }
         
         const prospect = await db.insert(companies).values({
-          userId: 'demo-user', // TODO: Get from auth context
+          userId,
           name: competitor.name,
           domain: competitor.domain,
           source: 'expanded',
@@ -627,7 +709,7 @@ async function analyseHandler(request: NextRequest) {
                       sendMessage(`✅ ${competitor.name}: ICP Score ${analysis.icpScore}/100, Confidence ${analysis.confidence}% (domain corrected)`);
                       
                       const prospect = await db.insert(companies).values({
-                        userId: 'demo-user',
+                        userId,
                         name: competitor.name,
                         domain: correctedDomain, // Use corrected domain
                         source: 'expanded',
@@ -667,7 +749,7 @@ async function analyseHandler(request: NextRequest) {
               }));
               
               const prospect = await db.insert(companies).values({
-                userId: 'demo-user', // TODO: Get from auth context
+                userId,
                 name: competitor.name,
                 domain: competitor.domain,
                 source: 'expanded',
@@ -691,7 +773,7 @@ async function analyseHandler(request: NextRequest) {
     
         // Create clusters and ads
         sendMessage(`\n📊 Creating clusters and generating ad copy...`);
-        const { clusters: clusterRecords, ads: adRecords } = await createClusters(prospectRecords, icp);
+        const { clusters: clusterRecords, ads: adRecords } = await createClusters(prospectRecords, icp, userId);
         sendMessage(`✅ Created ${clusterRecords.length} cluster(s) with ${adRecords.length} ad(s)`);
         
         // Check if we used mock data
@@ -715,6 +797,11 @@ async function analyseHandler(request: NextRequest) {
         
         sendMessage(`\n🎉 Analysis complete! Moving to cluster generation...`);
 
+        // Send usage warning if near limit
+        if (shouldWarn) {
+          sendMessage(`\n⚠️ Usage Warning: ${remaining - 1} AI generations remaining this month`);
+        }
+
         // Send final result
         const result = {
           prospects: prospectRecords,
@@ -722,6 +809,17 @@ async function analyseHandler(request: NextRequest) {
           ads: adRecords,
           icp,
           mockData: usedMockData,
+          usage: { 
+            used: used + 1, 
+            allowed,
+            plan: effectivePlan,
+            isTrialing,
+          },
+          warning: shouldWarn ? {
+            message: `You have ${remaining - 1} AI generations left this month.`,
+            remaining: remaining - 1,
+            threshold: thresholds.warnAt,
+          } : undefined,
         };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ result })}\n\n`));
         controller.close();
@@ -738,17 +836,24 @@ async function analyseHandler(request: NextRequest) {
         sendMessage(`\n❌ Error: ${errorMessage}`);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMessage })}\n\n`));
         controller.close();
+        }
       }
-    }
-  });
+    });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+  } catch (error) {
+    console.error('[ANALYSE] Pre-stream error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Analysis failed' },
+      { status: 500 }
+    );
+  }
 }
 
 export const POST = analyseHandler;

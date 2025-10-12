@@ -36,12 +36,24 @@ export default function HomePage() {
   const [usage, setUsage] = useState<{ used: number; allowed: number; plan: string } | null>(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [blockModalData, setBlockModalData] = useState<{ used: number; allowed: number; plan: string } | null>(null);
+  
+  // ✅ Initial page loading state (prevents flash of empty content)
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Load existing data on mount
   useEffect(() => {
-    loadExistingData();
-    restoreAnalysisState();
-    loadUsageData();
+    // Load all initial data in parallel, then show the page
+    const initializeApp = async () => {
+      setIsInitialLoading(true);
+      await Promise.all([
+        loadExistingData(),
+        restoreAnalysisState(),
+        loadUsageData(),
+      ]);
+      setIsInitialLoading(false);
+    };
+    
+    initializeApp();
   }, []);
 
   const loadUsageData = async () => {
@@ -122,14 +134,7 @@ export default function HomePage() {
         setHasData(true);
         console.log(`Loaded ${data.prospects.length} prospects from database`);
         
-        // TODO: Load clusters and ads from database as well
-        // For now, keep backward compatibility with localStorage for clusters/ads
-        const savedData = localStorage.getItem('gtm-data');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          if (parsed.clusters) setClusters(parsed.clusters);
-          if (parsed.ads) setAds(parsed.ads);
-        }
+        // TODO: Load clusters and ads from database as well (for now they're regenerated on analysis)
       }
     } catch (error) {
       console.error('Error loading existing data:', error);
@@ -150,8 +155,10 @@ export default function HomePage() {
       if (data.session) {
         const session = data.session;
         
-        if (session.analysisStep && session.analysisStep !== 'input') {
-          setAnalysisStep(session.analysisStep as 'input' | 'icp-review' | 'results');
+        // Convert integer analysisStep to string enum
+        if (session.analysisStep !== undefined && session.analysisStep !== 0) {
+          const stepMap = { 0: 'input', 1: 'icp-review', 2: 'results' } as const;
+          setAnalysisStep(stepMap[session.analysisStep as 0 | 1 | 2] || 'input');
         }
         
         if (session.icp) {
@@ -162,20 +169,18 @@ export default function HomePage() {
           setWebsiteUrl(session.websiteUrl);
         }
         
+        if (session.customers && session.customers.length > 0) {
+          setCustomers(session.customers);
+        }
+        
         console.log('Restored session from database');
-      }
-      
-      // Keep localStorage fallback for customers (not yet in session table)
-      const savedCustomers = localStorage.getItem('gtm-customers');
-      if (savedCustomers) {
-        setCustomers(JSON.parse(savedCustomers));
       }
     } catch (error) {
       console.error('Error restoring analysis state:', error);
     }
   };
 
-  const handleExtractICP = async (url: string, customerList: Customer[]) => {
+  const handleExtractICP = async (url: string, customerList: Customer[], isRegenerating = false) => {
     setIsLoading(true);
     setWebsiteUrl(url);
     setCustomers(customerList);
@@ -188,11 +193,26 @@ export default function HomePage() {
         },
         body: JSON.stringify({
           websiteUrl: url,
+          customers: customerList,
+          isRegenerating,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        
+        // Handle incomplete ICP with regenerate option
+        if (response.status === 422 && errorData.canRegenerate) {
+          toast.error(errorData.error, {
+            duration: 10000,
+            action: {
+              label: 'Regenerate',
+              onClick: () => handleExtractICP(url, customerList, true),
+            },
+          });
+          return;
+        }
+        
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -203,22 +223,28 @@ export default function HomePage() {
 
       // Save session to database
       try {
-        await fetch('/api/session', {
+        const response = await fetch('/api/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             websiteUrl: url,
             icp: data.icp,
-            analysisStep: 'icp-review',
+            analysisStep: 1, // 0=input, 1=icp-review, 2=results
+            customers: customerList,
           }),
         });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to save session:', errorData);
+          throw new Error(errorData.error || 'Failed to save session');
+        }
+        
         console.log('Session saved to database');
       } catch (error) {
         console.error('Failed to save session:', error);
+        toast.error('Could not save session — please retry');
       }
-
-      // Keep localStorage for backward compatibility (customers not yet in DB)
-      localStorage.setItem('gtm-customers', JSON.stringify(customerList));
 
       // Show info message if using mock data
       if (data.mockData) {
@@ -263,6 +289,24 @@ export default function HomePage() {
         }),
       });
 
+      // Handle 402 Payment Required (limit reached)
+      if (response.status === 402) {
+        const errorData = await response.json();
+        
+        // Refresh usage counter to show updated limit state
+        await loadUsageData();
+        
+        // Show BlockModal for upgrade
+        setBlockModalData({
+          used: errorData.usage?.used || 0,
+          allowed: errorData.usage?.allowed || 0,
+          plan: errorData.usage?.plan || 'trial'
+        });
+        setShowBlockModal(true);
+        
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -300,34 +344,41 @@ export default function HomePage() {
         throw new Error('No result received from analysis');
       }
       
-      setProspects(finalResult.prospects || []);
-      setClusters(finalResult.clusters || []);
-      setAds(finalResult.ads || []);
+      // ✅ ADD new prospects to existing ones (always grow the list)
+      const newProspects = finalResult.prospects || [];
+      setProspects(prev => [...prev, ...newProspects]); // Append new to existing
+      setClusters(prev => [...prev, ...(finalResult.clusters || [])]); // Append clusters
+      setAds(prev => [...prev, ...(finalResult.ads || [])]); // Append ads
       setHasData(true);
       setAnalysisStep('results');
+      
+      // Log for audit trail
+      console.log(`[ANALYSIS] Added ${newProspects.length} new prospects. Total: ${prospects.length + newProspects.length}`);
 
       // Save session to database
       try {
-        await fetch('/api/session', {
+        const response = await fetch('/api/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             websiteUrl,
             icp: confirmedICP,
-            analysisStep: 'results',
+            analysisStep: 2, // 0=input, 1=icp-review, 2=results
+            customers,
           }),
         });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to save session:', errorData);
+          throw new Error(errorData.error || 'Failed to save session');
+        }
+        
         console.log('Session saved to database');
       } catch (error) {
         console.error('Failed to save session:', error);
+        toast.error('Could not save session — please retry');
       }
-
-      // Keep localStorage for backward compatibility (clusters/ads not yet in DB)
-      localStorage.setItem('gtm-data', JSON.stringify({
-        prospects: finalResult.prospects,
-        clusters: finalResult.clusters,
-        ads: finalResult.ads,
-      }));
 
       // Hide progress panel after completion
       setTimeout(() => {
@@ -339,8 +390,12 @@ export default function HomePage() {
       if (finalResult.mockData) {
         toast.info('Using demo data - OpenAI quota exceeded. Add credits to your OpenAI account for real AI analysis.');
       } else {
-        toast.success(`Analysis complete! Found ${finalResult.prospects?.length || 0} prospects.`);
+        const totalCount = prospects.length + newProspects.length;
+        toast.success(`Analysis complete! Added ${newProspects.length} new prospects. Total: ${totalCount} prospects.`);
       }
+
+      // ✅ Refresh usage counter immediately after successful analysis
+      await loadUsageData();
       
     } catch (error) {
       console.error('Analysis error:', error);
@@ -355,8 +410,10 @@ export default function HomePage() {
   const handleBackToInput = () => {
     setAnalysisStep('input');
     // Don't clear ICP - keep it for context
-    localStorage.setItem('gtm-analysis-step', 'input');
-    toast.info('Add more customers to improve your prospect list');
+    toast.success(
+      `💡 Add more customers to expand your prospect list! You currently have ${prospects.length} prospects.`,
+      { duration: 5000 }
+    );
   };
 
   const handleClearAnalysis = async () => {
@@ -376,12 +433,21 @@ export default function HomePage() {
         throw new Error(errorData.error || 'Failed to clear data');
       }
       
-      // Clear all stored data from localStorage
-      localStorage.removeItem('gtm-data');
-      localStorage.removeItem('gtm-icp');
-      localStorage.removeItem('gtm-website-url');
-      localStorage.removeItem('gtm-customers');
-      localStorage.removeItem('gtm-analysis-step');
+      // Clear session from database
+      try {
+        await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            websiteUrl: null,
+            icp: null,
+            analysisStep: 0,
+            customers: null,
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to clear session:', error);
+      }
       
       // Reset all state (including input fields)
       setProspects([]);
@@ -423,16 +489,6 @@ export default function HomePage() {
         )
       );
 
-      // Update localStorage as backup
-      const updatedProspects = prospects.map(prospect => 
-        prospect.id === id ? { ...prospect, status: status as Company['status'] } : prospect
-      );
-      localStorage.setItem('gtm-data', JSON.stringify({
-        prospects: updatedProspects,
-        clusters,
-        ads,
-      }));
-
       toast.success('Status updated successfully');
       
     } catch (error) {
@@ -448,14 +504,6 @@ export default function HomePage() {
       
       // Remove from state
       setProspects(prev => prev.filter(p => p.id !== idToDelete));
-      
-      // Update localStorage
-      const filtered = prospects.filter(p => p.id !== idToDelete);
-      localStorage.setItem('gtm-data', JSON.stringify({
-        prospects: filtered,
-        clusters,
-        ads,
-      }));
       return;
     }
 
@@ -503,18 +551,6 @@ export default function HomePage() {
         return [...prev, updatedProspect];
       }
     });
-
-    // Update localStorage as backup
-    const existingIndexLocal = prospects.findIndex(p => p.id === updatedProspect.id);
-    const updatedProspects = existingIndexLocal >= 0
-      ? prospects.map(p => p.id === updatedProspect.id ? updatedProspect : p)
-      : [...prospects, updatedProspect];
-      
-    localStorage.setItem('gtm-data', JSON.stringify({
-      prospects: updatedProspects,
-      clusters,
-      ads,
-    }));
   };
 
   const handleMarkAsCustomer = (prospect: Company) => {
@@ -542,37 +578,87 @@ export default function HomePage() {
       prev.map(p => p.id === prospect.id ? updatedProspect : p)
     );
 
-    // Update localStorage for prospects
-    const updatedProspects = prospects.map(p => 
-      p.id === prospect.id ? updatedProspect : p
-    );
-    localStorage.setItem('gtm-data', JSON.stringify({
-      prospects: updatedProspects,
-      clusters,
-      ads,
-    }));
-
-    // Add to customers and persist
+    // Add to customers and persist to session
     const updatedCustomers = [...customers, newCustomer];
     setCustomers(updatedCustomers);
-    localStorage.setItem('gtm-customers', JSON.stringify(updatedCustomers));
+    
+    // Save updated customers to session (preserve all existing session data!)
+    try {
+      fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          icp: extractedICP, // ✅ Preserve ICP
+          websiteUrl: websiteUrl, // ✅ Preserve website URL
+          analysisStep: analysisStep === 'input' ? 0 : analysisStep === 'icp-review' ? 1 : 2,
+          customers: updatedCustomers, // ✅ Update customers
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save customers to session:', error);
+    }
     
     toast.success(`${prospect.name} marked as customer! Click "Add More Customers" to run a new analysis with this updated customer base.`);
   };
 
-  const handleICPUpdate = (updatedICP: ICP) => {
+  const handleICPUpdate = async (updatedICP: ICP) => {
     setExtractedICP(updatedICP);
-    localStorage.setItem('gtm-icp', JSON.stringify(updatedICP));
-    toast.success('ICP Profile updated successfully');
+    
+    // Save to session
+    try {
+      await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          icp: updatedICP,
+        }),
+      });
+      toast.success('ICP Profile updated successfully');
+    } catch (error) {
+      console.error('Failed to save ICP to session:', error);
+      toast.error('Could not save ICP — please retry');
+    }
   };
 
   const handleUpgrade = async (plan: 'starter' | 'pro') => {
     try {
-      console.log('[APP] Redirecting to billing for plan:', plan);
-      window.location.href = '/settings/billing';
+      console.log('[APP] Starting upgrade to:', plan);
+      
+      // Call checkout API (handles both new subscriptions and upgrades)
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate upgrade');
+      }
+      
+      const data = await response.json();
+      
+      if (data.upgraded) {
+        // Direct upgrade (existing subscription updated)
+        console.log('[APP] Direct upgrade successful:', data.plan);
+        toast.success(data.message || 'Successfully upgraded!');
+        
+        // Refresh usage data to show new limits
+        await loadUsageData();
+        
+        // Close modal and redirect to billing page
+        setShowBlockModal(false);
+        window.location.href = data.url;
+      } else if (data.url) {
+        // New subscription (redirect to Stripe Checkout)
+        console.log('[APP] Redirecting to Stripe Checkout...');
+        window.location.href = data.url;
+      } else {
+        throw new Error('Invalid response from checkout API');
+      }
     } catch (error) {
-      console.error('[APP] Error navigating to billing:', error);
-      toast.error('Failed to navigate to billing page');
+      console.error('[APP] Error during upgrade:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to upgrade');
     }
   };
 
@@ -588,11 +674,28 @@ export default function HomePage() {
   const shouldShowWarning = usage && usage.allowed > 0 && usage.used >= warnThreshold;
   const isAtLimit = usage && usage.allowed > 0 && usage.used >= usage.allowed;
 
+  // ✅ Show loading spinner while initial data loads (prevents content flashing)
+  if (isInitialLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading your workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Warning Banner */}
-      {shouldShowWarning && usage && !isAtLimit && (
-        <WarningBanner used={usage.used} allowed={usage.allowed} plan={usage.plan} />
+      {/* Warning/Limit Banner - Show at 80%+ including 100% */}
+      {shouldShowWarning && usage && (
+        <WarningBanner 
+          used={usage.used} 
+          allowed={usage.allowed} 
+          plan={usage.plan}
+          isAtLimit={isAtLimit}
+        />
       )}
 
       {/* Block Modal */}
@@ -617,7 +720,7 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
             {usage && <UsageBadge used={usage.used} allowed={usage.allowed} plan={usage.plan} />}
-            <UserMenu />
+            <UserMenu onOpenSettings={() => setShowSettings(true)} />
             {extractedICP && (
               <button
                 onClick={() => {
@@ -631,14 +734,6 @@ export default function HomePage() {
                 <span className="sm:hidden">ICP</span>
               </button>
             )}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center text-sm sm:text-base"
-            >
-              <Settings className="h-4 w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Settings</span>
-              <span className="sm:hidden">Settings</span>
-            </button>
             {(hasData || analysisStep === 'results') && (
               <button
                 onClick={handleBackToInput}
@@ -647,15 +742,6 @@ export default function HomePage() {
                 <Plus className="h-4 w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Add More Customers</span>
                 <span className="sm:hidden">Add Customers</span>
-              </button>
-            )}
-            {(hasData || extractedICP || analysisStep !== 'input') && (
-              <button
-                onClick={handleClearAnalysis}
-                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors text-sm sm:text-base"
-              >
-                <span className="hidden sm:inline">Clear All Data</span>
-                <span className="sm:hidden">Clear Data</span>
               </button>
             )}
           </div>
@@ -698,7 +784,6 @@ export default function HomePage() {
                     <button
                       onClick={() => {
                         setAnalysisStep('results');
-                        localStorage.setItem('gtm-analysis-step', 'results');
                       }}
                       className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                     >
@@ -765,6 +850,10 @@ export default function HomePage() {
               onProspectUpdate={handleProspectUpdate}
               onMarkAsCustomer={handleMarkAsCustomer}
               onUsageUpdate={loadUsageData}
+              onShowBlockModal={(data) => {
+                setBlockModalData(data);
+                setShowBlockModal(true);
+              }}
             />
           </div>
         )}
@@ -780,8 +869,9 @@ export default function HomePage() {
 
       {/* Settings Modal */}
       <SettingsModal 
-        isOpen={showSettings} 
-        onClose={() => setShowSettings(false)} 
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onClearData={handleClearAnalysis}
       />
 
       {/* Analysis Progress Panel - Compact Left Sidebar */}

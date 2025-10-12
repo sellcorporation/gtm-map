@@ -44,3 +44,96 @@ Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signin
 2025-10-12 00:14:35  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHBzi2NFEywlXB6BSJv01nX]
 2025-10-12 00:14:52   --> setup_intent.created [evt_1SHC002NFEywlXB6f8SKAFj4]
 2025-10-12 00:14:53  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHC002NFEywlXB6f8SKAFj4]
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+2025-10-12 12:14:56   --> setup_intent.canceled [evt_1SHNEq2NFEywlXB6WdXEd2VE]
+2025-10-12 12:14:59  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHNEq2NFEywlXB6WdXEd2VE]
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+Session expired, reconnecting...
+Ready! You are using Stripe API Version [2025-09-30.clover]. Your webhook signing secret is whsec_4f4fbc268de59a11bdecffe52c00d0f486f3793ca1352b88c570ce2aeefc811d (^C to quit)
+2025-10-12 16:04:10   --> charge.succeeded [evt_3SHQod2NFEywlXB608jknuGC]
+2025-10-12 16:04:10   --> checkout.session.completed [evt_1SHQog2NFEywlXB6cJAWyZQO]
+2025-10-12 16:04:10   --> payment_method.attached [evt_1SHQog2NFEywlXB6HAwWeeO5]
+2025-10-12 16:04:10   --> customer.updated [evt_1SHQog2NFEywlXB6G9o2r9ku]
+2025-10-12 16:04:10   --> customer.subscription.created [evt_1SHQog2NFEywlXB6ds9SksUT]
+2025-10-12 16:04:10   --> customer.subscription.updated [evt_1SHQog2NFEywlXB6KbIj48q5]
+2025-10-12 16:04:10   --> payment_intent.succeeded [evt_3SHQod2NFEywlXB60OegJWnP]
+2025-10-12 16:04:11   --> payment_intent.created [evt_3SHQod2NFEywlXB60nbXIa8u]
+2025-10-12 16:04:11   --> invoice.created [evt_1SHQog2NFEywlXB62g262LZY]
+2025-10-12 16:04:11   --> invoice.finalized [evt_1SHQoh2NFEywlXB61C8NGP05]
+2025-10-12 16:04:11   --> invoice.updated [evt_1SHQoh2NFEywlXB6wWjMpsAO]
+2025-10-12 16:04:11   --> invoice.paid [evt_1SHQoh2NFEywlXB6H8pjJBlv]
+2025-10-12 16:04:11   --> invoice.payment_succeeded [evt_1SHQoh2NFEywlXB64jh7HocQ]
+2025-10-12 16:04:11  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQog2NFEywlXB62g262LZY]
+2025-10-12 16:04:11  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_3SHQod2NFEywlXB60OegJWnP]
+2025-10-12 16:04:11  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQog2NFEywlXB6ds9SksUT]
+2025-10-12 16:04:11  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQog2NFEywlXB6G9o2r9ku]
+2025-10-12 16:04:11  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_3SHQod2NFEywlXB60nbXIa8u]
+2025-10-12 16:04:11  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQoh2NFEywlXB64jh7HocQ]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQoh2NFEywlXB61C8NGP05]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQoh2NFEywlXB6wWjMpsAO]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQog2NFEywlXB6HAwWeeO5]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_3SHQod2NFEywlXB608jknuGC]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQoh2NFEywlXB6H8pjJBlv]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQog2NFEywlXB6KbIj48q5]
+2025-10-12 16:04:12  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQog2NFEywlXB6cJAWyZQO]
+2025-10-12 16:04:59   --> invoice_payment.paid [evt_1SHQpS2NFEywlXB6U51cNubv]
+2025-10-12 16:05:00  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHQpS2NFEywlXB6U51cNubv]
+2025-10-12 16:19:49   --> billing_portal.session.created [evt_1SHR3p2NFEywlXB6WAoU62TN]
+2025-10-12 16:19:49  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHR3p2NFEywlXB6WAoU62TN]
+2025-10-12 16:20:07   --> customer.subscription.updated [evt_1SHR472NFEywlXB6ycjwLPIR]
+2025-10-12 16:20:08  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHR472NFEywlXB6ycjwLPIR]
+2025-10-12 16:20:18   --> customer.subscription.updated [evt_1SHR4I2NFEywlXB6iznB3Tp4]
+2025-10-12 16:20:19  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHR4I2NFEywlXB6iznB3Tp4]
+2025-10-12 17:03:21   --> checkout.session.completed [evt_1SHRjx2NFEywlXB6th1YKceW]
+2025-10-12 17:03:21   --> charge.succeeded [evt_3SHRjt2NFEywlXB6185D1JrT]
+2025-10-12 17:03:21   --> payment_method.attached [evt_1SHRjx2NFEywlXB6Xa9apPow]
+2025-10-12 17:03:21   --> customer.updated [evt_1SHRjx2NFEywlXB6QwRSMkUf]
+2025-10-12 17:03:21   --> customer.subscription.created [evt_1SHRjx2NFEywlXB6Jk0kW5JN]
+2025-10-12 17:03:21   --> customer.subscription.updated [evt_1SHRjx2NFEywlXB62sOEQmLs]
+2025-10-12 17:03:21   --> payment_intent.succeeded [evt_3SHRjt2NFEywlXB61N3ZFlr2]
+2025-10-12 17:03:21   --> payment_intent.created [evt_3SHRjt2NFEywlXB61Nn9nY0k]
+2025-10-12 17:03:21   --> invoice.created [evt_1SHRjx2NFEywlXB6wOczoMPI]
+2025-10-12 17:03:22   --> invoice.finalized [evt_1SHRjx2NFEywlXB6bxGpk74t]
+2025-10-12 17:03:22   --> invoice.updated [evt_1SHRjy2NFEywlXB6bB9oeysa]
+2025-10-12 17:03:22   --> invoice.paid [evt_1SHRjy2NFEywlXB6ArpoTHd8]
+2025-10-12 17:03:22   --> invoice.payment_succeeded [evt_1SHRjy2NFEywlXB6i0qtcMWX]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjy2NFEywlXB6i0qtcMWX]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB6Jk0kW5JN]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB6wOczoMPI]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_3SHRjt2NFEywlXB61Nn9nY0k]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_3SHRjt2NFEywlXB61N3ZFlr2]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB6QwRSMkUf]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjy2NFEywlXB6bB9oeysa]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB6Xa9apPow]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB6bxGpk74t]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_3SHRjt2NFEywlXB6185D1JrT]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjy2NFEywlXB6ArpoTHd8]
+2025-10-12 17:03:23  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB62sOEQmLs]
+2025-10-12 17:03:24  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRjx2NFEywlXB6th1YKceW]
+2025-10-12 17:04:09   --> invoice_payment.paid [evt_1SHRkj2NFEywlXB633Zb29JX]
+2025-10-12 17:04:10  <--  [200] POST http://localhost:3000/api/stripe/webhook [evt_1SHRkj2NFEywlXB633Zb29JX]

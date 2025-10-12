@@ -109,7 +109,10 @@ function generateMockAdCopy(clusterLabel: string): AdCopy {
   };
 }
 
-export async function extractICP(websiteText: string): Promise<{ icp: ICP; isMock: boolean }> {
+export async function extractICP(
+  websiteText: string, 
+  customers?: Array<{ name: string; domain: string }>
+): Promise<{ icp: ICP; isMock: boolean }> {
   try {
     // Check if OpenAI API key is available and has quota
     if (!process.env.OPENAI_API_KEY) {
@@ -117,10 +120,21 @@ export async function extractICP(websiteText: string): Promise<{ icp: ICP; isMoc
       return { icp: generateMockICP(), isMock: true };
     }
 
+    // Build enhanced prompt with customer context
+    let prompt = `${ICP_PROMPT}\n\nWebsite content:\n${websiteText}`;
+    
+    if (customers && customers.length > 0) {
+      prompt += `\n\nKNOWN CUSTOMERS (use these to refine your ICP analysis):\n`;
+      customers.forEach(c => {
+        prompt += `- ${c.name} (${c.domain})\n`;
+      });
+      prompt += `\nIMPORTANT: ALL fields are MANDATORY. Analyze the website AND the customer list to provide complete, accurate ICP data. If any field cannot be determined, make an educated inference based on the available information.`;
+    }
+
     const { object } = await generateObject({
       model,
       schema: ICPSchema,
-      prompt: `${ICP_PROMPT}\n\nWebsite content:\n${websiteText}`,
+      prompt,
     });
     
     return { icp: object, isMock: false };

@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { extractICP } from '@/lib/ai';
 
 const ExtractICPSchema = z.object({
   websiteUrl: z.string().min(1, 'Website URL is required'),
+  customers: z.array(z.object({
+    name: z.string(),
+    domain: z.string(),
+  })).min(1, 'At least one customer is required for ICP extraction'),
+  isRegenerating: z.boolean().optional(), // Flag for free regeneration on errors
 });
 
 async function fetchWebsiteContent(url: string): Promise<string> {
@@ -66,14 +73,100 @@ async function fetchWebsiteContent(url: string): Promise<string> {
 
 async function extractICPHandler(request: NextRequest) {
   try {
+    // ========== AUTH CHECK (No usage tracking for ICP extraction) ==========
+    console.log('[EXTRACT-ICP] Checking authentication...');
+    
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[EXTRACT-ICP] Not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[EXTRACT-ICP] User authenticated:', user.email);
+
+    // ========== PROCEED WITH ICP EXTRACTION ==========
     const body = await request.json();
-    const { websiteUrl } = ExtractICPSchema.parse(body);
+    const { websiteUrl, customers, isRegenerating } = ExtractICPSchema.parse(body);
+    
+    console.log('[EXTRACT-ICP] Prerequisites validated:', {
+      websiteUrl,
+      customerCount: customers.length,
+      isRegenerating: isRegenerating || false,
+    });
     
     // Fetch and parse website content
     const websiteText = await fetchWebsiteContent(websiteUrl);
     
-    // Extract ICP
-    const { icp, isMock } = await extractICP(websiteText);
+    // Extract ICP with retry logic for incomplete responses
+    let icp;
+    let isMock = false;
+    let attempt = 0;
+    const maxAttempts = 2;
+    
+    while (attempt < maxAttempts) {
+      attempt++;
+      console.log(`[EXTRACT-ICP] Extraction attempt ${attempt}/${maxAttempts}`);
+      
+      try {
+        const result = await extractICP(websiteText, customers);
+        icp = result.icp;
+        isMock = result.isMock;
+        
+        // Validate that ALL required fields are present
+        const missingFields = [];
+        
+        if (!icp.solution || icp.solution.length === 0) missingFields.push('solution');
+        if (!icp.workflows || icp.workflows.length === 0) missingFields.push('workflows');
+        if (!icp.industries || icp.industries.length === 0) missingFields.push('industries');
+        if (!icp.buyerRoles || icp.buyerRoles.length === 0) missingFields.push('buyerRoles');
+        if (!icp.firmographics || !icp.firmographics.size || !icp.firmographics.geo) {
+          missingFields.push('firmographics');
+        }
+        
+        if (missingFields.length === 0) {
+          console.log('[EXTRACT-ICP] All required fields present');
+          break; // Success!
+        }
+        
+        console.warn(`[EXTRACT-ICP] Incomplete ICP, missing: ${missingFields.join(', ')}`);
+        
+        if (attempt < maxAttempts) {
+          console.log('[EXTRACT-ICP] Retrying with more explicit prompt...');
+        } else {
+          return NextResponse.json({
+            error: `AI generated incomplete ICP profile. Missing: ${missingFields.join(', ')}. Please try again.`,
+            code: 'INCOMPLETE_ICP',
+            missingFields,
+            canRegenerate: true, // Allow free regeneration
+          }, { status: 422 });
+        }
+      } catch (error) {
+        console.error(`[EXTRACT-ICP] Attempt ${attempt} failed:`, error);
+        
+        if (attempt >= maxAttempts) {
+          throw error; // Re-throw on final attempt
+        }
+      }
+    }
+    
+    console.log('[EXTRACT-ICP] Extraction successful');
     
     return NextResponse.json({
       icp,

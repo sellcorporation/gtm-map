@@ -82,7 +82,12 @@ async function generateMoreHandler(request: NextRequest) {
         error: 'Limit reached',
         message: `You've reached your ${isTrialing ? 'trial' : effectivePlan} limit of ${allowed} AI generations this month.`,
         code: 'LIMIT_REACHED',
-        usage: { used, allowed },
+        usage: { 
+          used, 
+          allowed,
+          plan: isTrialing ? 'trial' : effectivePlan,
+          isTrialing,
+        },
         cta: {
           type: 'upgrade',
           plan: upgradePlan,

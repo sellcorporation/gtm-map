@@ -24,15 +24,16 @@ export const userSettings = pgTable('user_settings', {
 });
 
 // ========================================
-// LEGACY: USER SESSIONS (may be deprecated)
+// USER SESSIONS (for ICP, customers, analysis state)
 // ========================================
-// User sessions and ICP profiles
 export const userSessions = pgTable('user_sessions', {
   id: serial('id').primaryKey(),
-  userId: uuid('user_id').notNull(), // CHANGED: text → uuid
+  userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
   websiteUrl: text('website_url'),
   icp: json('icp'), // ICP object
-  analysisStep: text('analysis_step').default('input'),
+  customers: json('customers'), // Customer list as JSONB array
+  analysisStep: integer('analysis_step').default(0), // 0=input, 1=icp-review, 2=results
+  lastActive: timestamp('last_active', { withTimezone: true }).defaultNow(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

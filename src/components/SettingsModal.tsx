@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, X, Zap } from 'lucide-react';
+import { Settings, X, Zap, Trash2 } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onClearData?: () => void;
 }
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onClearData }: SettingsModalProps) {
   const [batchSize, setBatchSize] = useState(10);
   const [maxTotalProspects, setMaxTotalProspects] = useState(50);
   
@@ -118,6 +119,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </ul>
           </div>
         </div>
+
+        {/* Danger Zone */}
+        {onClearData && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-red-50 rounded-md p-4">
+              <h3 className="text-sm font-medium text-red-800 mb-2">Danger Zone</h3>
+              <p className="text-xs text-red-600 mb-3">
+                This action will delete all your data including prospects, ICP profile, and analysis results. This cannot be undone.
+              </p>
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+                    onClearData();
+                    onClose();
+                  }
+                }}
+                className="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear All Data
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="mt-6 flex items-center justify-end gap-3">

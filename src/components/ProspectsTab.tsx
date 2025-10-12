@@ -17,11 +17,12 @@ interface ProspectsTabProps {
   onProspectUpdate: (updatedProspect: Company) => void;
   onGenerateMore?: () => void;
   onMarkAsCustomer?: (prospect: Company) => void;
+  onUsageUpdate?: () => Promise<void>;
   showImportModal?: boolean;
   setShowImportModal?: (show: boolean) => void;
 }
 
-export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer, showImportModal = false, setShowImportModal }: ProspectsTabProps) {
+export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspectUpdate, onGenerateMore, onMarkAsCustomer, onUsageUpdate, showImportModal = false, setShowImportModal }: ProspectsTabProps) {
   const [selectedProspect, setSelectedProspect] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -657,6 +658,30 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
         }),
       });
 
+      // Handle 402 Payment Required (limit reached)
+      if (response.status === 402) {
+        const errorData = await response.json();
+        const plan = errorData.cta?.plan || 'Starter';
+        const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+        
+        toast.error(errorData.message || 'You have reached your AI generation limit', {
+          duration: 10000,
+          action: {
+            label: `Upgrade to ${planName}`,
+            onClick: () => {
+              window.location.href = '/settings/billing';
+            },
+          },
+        });
+        
+        // Refresh usage to show updated state
+        if (onUsageUpdate) {
+          await onUsageUpdate();
+        }
+        
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to start competitor search');
       }
@@ -712,14 +737,6 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
       if (finalResult && finalResult.success && finalResult.competitors.length > 0) {
         // Add new competitors to the list - batch update
         const newCompetitors = finalResult.competitors as Company[];
-        
-        // Update localStorage first
-        const savedData = localStorage.getItem('gtm-data');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          parsed.prospects = [...(parsed.prospects || []), ...newCompetitors];
-          localStorage.setItem('gtm-data', JSON.stringify(parsed));
-        }
 
         // Add to UI - batch update by calling onProspectUpdate for each
         // This ensures the parent component's state is updated
@@ -732,12 +749,23 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
           toast.success(`Found and added ${newCompetitors.length} competitor(s) of ${prospect.name}!`);
         }, 100);
         
+        // Refresh usage counter immediately after successful competitor search
+        if (onUsageUpdate) {
+          await onUsageUpdate();
+        }
+        
         // Clear progress after a delay
         setTimeout(() => {
           setCompetitorProgress([]);
         }, 3000);
       } else if (finalResult) {
         toast.info(finalResult.message || `No new competitors found for ${prospect.name}.`);
+        
+        // Still refresh usage even if no competitors found (usage was still consumed)
+        if (onUsageUpdate) {
+          await onUsageUpdate();
+        }
+        
         setTimeout(() => {
           setCompetitorProgress([]);
         }, 2000);
@@ -789,64 +817,37 @@ export default function ProspectsTab({ prospects, icp, onStatusUpdate, onProspec
 
         const data = await response.json();
         
-        newProspect = {
-          id: Date.now(), // Temporary ID
-          userId: 'demo-user',
-          name: manualProspectData.name,
-          domain: manualProspectData.domain,
-          source: 'expanded' as const,
-          sourceCustomerDomain: null,
-          icpScore: data.icpScore,
-          confidence: data.confidence,
-          status: 'New' as const,
-          rationale: data.rationale,
-          evidence: data.evidence,
-          decisionMakers: null,
-          quality: null,
-          notes: 'Manually added prospect',
-          tags: null,
-          relatedCompanyIds: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
+        // Use the saved company object from the database (already has real ID)
+        newProspect = data.company;
         
         toast.success('Prospect analyzed and added!');
       } else {
-        // Add manually without AI analysis
-        newProspect = {
-          id: Date.now(), // Temporary ID
-          userId: 'demo-user',
-          name: manualProspectData.name,
-          domain: manualProspectData.domain,
-          source: 'expanded' as const,
-          sourceCustomerDomain: null,
-          icpScore: 50, // Default score
-          confidence: 50, // Default confidence
-          status: 'New' as const,
-          rationale: 'Manually added prospect - no AI analysis performed',
-          evidence: [],
-          decisionMakers: null,
-          quality: null,
-          notes: 'Manually added prospect',
-          tags: null,
-          relatedCompanyIds: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
+        // Add manually without AI analysis - save to database
+        const response = await fetch('/api/company', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: manualProspectData.name,
+            domain: manualProspectData.domain,
+            icpScore: 50,
+            confidence: 50,
+            rationale: 'Manually added prospect - no AI analysis performed',
+            notes: 'Manually added prospect',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save prospect');
+        }
+
+        const data = await response.json();
+        newProspect = data.company; // Use the saved company with real database ID
         
         toast.success('Prospect added successfully!');
       }
 
       // Add to prospects list
       onProspectUpdate(newProspect);
-      
-      // Update localStorage
-      const savedData = localStorage.getItem('gtm-data');
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        parsed.prospects = [...(parsed.prospects || []), newProspect];
-        localStorage.setItem('gtm-data', JSON.stringify(parsed));
-      }
 
       // Reset form
       cancelAddingManualProspect();

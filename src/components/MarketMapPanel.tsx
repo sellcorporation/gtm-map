@@ -16,6 +16,7 @@ interface MarketMapPanelProps {
   onProspectUpdate: (updatedProspect: Company) => void;
   onMarkAsCustomer?: (prospect: Company) => void;
   onUsageUpdate?: () => Promise<void>;
+  onShowBlockModal?: (data: { used: number; allowed: number; plan: string }) => void;
 }
 
 export default function MarketMapPanel({ 
@@ -26,7 +27,8 @@ export default function MarketMapPanel({
   onStatusUpdate,
   onProspectUpdate,
   onMarkAsCustomer,
-  onUsageUpdate
+  onUsageUpdate,
+  onShowBlockModal
 }: MarketMapPanelProps) {
   const [activeTab, setActiveTab] = useState<'prospects' | 'clusters' | 'ads'>('prospects');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -93,13 +95,8 @@ export default function MarketMapPanel({
     const batchSize = parseInt(localStorage.getItem('gtm-batch-size') || '10');
     const maxTotalProspects = parseInt(localStorage.getItem('gtm-max-total-prospects') || '100');
 
-    setIsGenerating(true);
-    setGenerateProgress([]);
-    setShowGenerateProgress(true);
-    
+    // ✅ FIRST: Check limit by making API call (don't show UI yet)
     try {
-      toast.info(`Searching for ${batchSize} new high-quality prospects...`);
-      
       const response = await fetch('/api/generate-more', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -118,26 +115,50 @@ export default function MarketMapPanel({
         }),
       });
 
-      // Handle 402 Payment Required (limit reached)
+      // Handle 402 Payment Required (limit reached) - BEFORE showing any UI
       if (response.status === 402) {
         const errorData = await response.json();
-        toast.error(errorData.message || 'You have reached your AI generation limit', { duration: 8000 });
         
         // Refresh usage to show updated state
         if (onUsageUpdate) {
           await onUsageUpdate();
         }
         
-        // Redirect to billing after 2 seconds
-        setTimeout(() => {
-          window.location.href = '/settings/billing';
-        }, 2000);
+        // Show BlockModal if callback provided, otherwise fall back to toast
+        if (onShowBlockModal && errorData.usage) {
+          onShowBlockModal({
+            used: errorData.usage.used,
+            allowed: errorData.usage.allowed,
+            plan: errorData.usage.plan || 'trial'
+          });
+        } else {
+          // Fallback to toast (shouldn't happen if prop is passed)
+          const plan = errorData.cta?.plan || 'Starter';
+          const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+          
+          toast.error(errorData.message || 'You have reached your AI generation limit', {
+            duration: 10000,
+            action: {
+              label: `Upgrade to ${planName}`,
+              onClick: () => {
+                window.location.href = '/settings/billing';
+              },
+            },
+          });
+        }
+        
         return;
       }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+
+      // ✅ ONLY NOW: Show UI (limit check passed)
+      setIsGenerating(true);
+      setGenerateProgress([]);
+      setShowGenerateProgress(true);
+      toast.info(`Searching for ${batchSize} new high-quality prospects...`);
 
       // Handle SSE stream
       const reader = response.body?.getReader();
@@ -359,6 +380,7 @@ export default function MarketMapPanel({
             onProspectUpdate={onProspectUpdate}
             onGenerateMore={handleGenerateMore}
             onMarkAsCustomer={onMarkAsCustomer}
+            onUsageUpdate={onUsageUpdate}
             showImportModal={showImportModal}
             setShowImportModal={setShowImportModal}
           />

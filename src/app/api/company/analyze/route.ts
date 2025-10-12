@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { db, companies } from '@/lib/db';
 import { fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 import { getEffectiveEntitlements, incrementUsage } from '@/lib/billing/entitlements';
@@ -119,8 +120,30 @@ async function analyzeCompanyHandler(request: NextRequest) {
       icp
     );
 
+    // Save the prospect to the database and get the real database ID
+    const savedProspect = await db.insert(companies).values({
+      userId: user.id,
+      name,
+      domain,
+      source: 'expanded',
+      sourceCustomerDomain: null,
+      icpScore: analysis.icpScore,
+      confidence: analysis.confidence,
+      status: 'New',
+      rationale: analysis.rationale,
+      evidence: analysis.evidence,
+      decisionMakers: null,
+      quality: null,
+      notes: 'Manually added prospect',
+      tags: null,
+      relatedCompanyIds: null,
+    }).returning();
+
+    console.log('[COMPANY-ANALYZE] Saved prospect to database with ID:', savedProspect[0].id);
+
     return NextResponse.json({
       success: true,
+      company: savedProspect[0], // Return the full saved company object with real database ID
       icpScore: analysis.icpScore,
       confidence: analysis.confidence,
       rationale: analysis.rationale,

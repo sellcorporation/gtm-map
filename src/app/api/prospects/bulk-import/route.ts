@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { db, companies } from '@/lib/db';
 import { eq, and } from 'drizzle-orm';
 
@@ -17,10 +19,38 @@ const BulkImportRequestSchema = z.object({
 
 async function bulkImportHandler(request: NextRequest) {
   try {
+    // ========== AUTH CHECK ==========
+    console.log('[BULK-IMPORT] Checking authentication...');
+    
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('[BULK-IMPORT] Not authenticated');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[BULK-IMPORT] User authenticated:', user.email);
+    const userId = user.id;
+
+    // ========== PROCEED WITH IMPORT ==========
     const body = await request.json();
     const { prospects } = BulkImportRequestSchema.parse(body);
-    
-    const userId = 'demo-user'; // TODO: Get from auth context
     
     // Fetch existing domains for this user to check for duplicates
     const existingCompanies = await db

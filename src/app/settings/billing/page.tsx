@@ -1,10 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { CreditCard, Loader2, Check } from 'lucide-react';
+import { CreditCard, Loader2, Check, ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function BillingPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<any>(null);
   const [usage, setUsage] = useState({ used: 0, allowed: 0 });
@@ -16,6 +20,20 @@ export default function BillingPage() {
   );
 
   useEffect(() => {
+    // Check for upgrade success message
+    const upgraded = searchParams.get('upgraded');
+    const plan = searchParams.get('plan');
+    
+    if (upgraded === 'true' && plan) {
+      const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+      toast.success(`🎉 Successfully upgraded to ${planName}! Your new limits are active immediately.`, {
+        duration: 5000,
+      });
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/settings/billing');
+    }
+    
     loadBillingData();
   }, []);
 
@@ -35,9 +53,51 @@ export default function BillingPage() {
 
       setSubscription(sub);
 
-      // Get usage (simplified for now - would normally call an API endpoint)
-      // For MVP, just show placeholder
-      setUsage({ used: 0, allowed: sub?.plan_id === 'pro' ? 200 : sub?.plan_id === 'starter' ? 50 : 0 });
+      // Get actual usage data (same logic as main page)
+      const { data: trial } = await supabase
+        .from('trial_usage')
+        .select('generations_used, max_generations, expires_at')
+        .eq('user_id', user.id)
+        .single();
+
+      const now = new Date();
+      const hasActiveTrial = trial && now < new Date(trial.expires_at);
+
+      let used = 0;
+      let allowed = 0;
+
+      if (hasActiveTrial) {
+        // Trial usage
+        used = trial.generations_used || 0;
+        allowed = trial.max_generations || 10;
+      } else {
+        // Get monthly usage from usage_counters
+        const periodStart = new Date();
+        periodStart.setUTCDate(1);
+        periodStart.setUTCHours(0, 0, 0, 0);
+
+        const { data: usageData } = await supabase
+          .from('usage_counters')
+          .select('used')
+          .eq('user_id', user.id)
+          .eq('metric', 'ai_generations')
+          .eq('period_start', periodStart.toISOString().split('T')[0])
+          .single();
+
+        used = usageData?.used || 0;
+
+        // Get plan limit from subscription_plans
+        const planId = sub?.plan_id || 'free';
+        const { data: planData } = await supabase
+          .from('subscription_plans')
+          .select('max_ai_generations_per_month')
+          .eq('id', planId)
+          .single();
+
+        allowed = planData?.max_ai_generations_per_month || 0;
+      }
+
+      setUsage({ used, allowed });
     } catch (error) {
       console.error('Error loading billing data:', error);
     } finally {
@@ -129,8 +189,15 @@ export default function BillingPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Header */}
+      {/* Header with Back Button */}
       <div>
+        <button
+          onClick={() => router.push('/')}
+          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Market Map
+        </button>
         <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
         <p className="text-sm text-gray-600 mt-1">
           Manage your subscription and usage
@@ -162,8 +229,14 @@ export default function BillingPage() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all"
-                style={{ width: `${(usage.used / usage.allowed) * 100}%` }}
+                className={`h-2 rounded-full transition-all ${
+                  usage.used >= usage.allowed
+                    ? 'bg-red-500'      // Red ONLY at 100%
+                    : (usage.used / usage.allowed) * 100 >= 80
+                    ? 'bg-amber-500'    // Amber at 80-99%
+                    : 'bg-gray-600'     // Gray under 80%
+                }`}
+                style={{ width: `${Math.min((usage.used / usage.allowed) * 100, 100)}%` }}
               />
             </div>
           </div>

@@ -30,7 +30,9 @@ export function BlockModal({
 
   if (!isOpen) return null;
 
-  const suggestedPlan = plan === 'free' || plan === 'starter' ? 'pro' : 'starter';
+  // Determine suggested plan based on current plan
+  const isTrialOrFree = plan === 'trial' || plan === 'free';
+  const suggestedPlan = isTrialOrFree || plan === 'starter' ? 'pro' : 'starter';
   const suggestedGenerations = suggestedPlan === 'pro' ? 200 : 50;
   const suggestedPrice = suggestedPlan === 'pro' ? '£99' : '£29';
 
@@ -55,29 +57,53 @@ export function BlockModal({
           </div>
           
           <h3 className="text-lg font-semibold mt-4 text-gray-900">
-            You&apos;ve reached your limit
+            You've reached your limit
           </h3>
           
           <p className="text-sm text-gray-600 mt-2">
-            You&apos;ve used all {allowed} AI generations this month.
-            {plan === 'free' && ' Start your 14-day trial with Pro features to continue.'}
-            {plan !== 'free' && ` Upgrade to ${suggestedPlan === 'pro' ? 'Pro' : 'Starter'} for ${suggestedGenerations} generations/month.`}
+            {plan === 'trial' && `You've used all ${allowed} AI generations in your trial. Upgrade to continue generating high-quality prospects.`}
+            {plan === 'free' && `You've used all ${allowed} AI generations. Upgrade to continue generating high-quality prospects.`}
+            {plan === 'starter' && (
+              <>
+                🎉 <strong>Amazing work!</strong> You've used all {allowed} AI generations this month. 
+                You're clearly a power user! Upgrade to Pro for {suggestedGenerations} generations/month and keep the momentum going.
+              </>
+            )}
+            {plan === 'pro' && (
+              <>
+                🎊 <strong>Incredible!</strong> You've used all {allowed} AI generations this month. 
+                You're a true power user! We're working on a feature to unlock extra AI generations for users like you.
+                <br /><br />
+                <strong>Want early access?</strong> Send us an email at{' '}
+                <a 
+                  href="mailto:ionut.furnea@sellcorporation.com?subject=Request%20for%20Extra%20AI%20Generations" 
+                  className="text-blue-600 hover:text-blue-700 underline font-medium"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  ionut.furnea@sellcorporation.com
+                </a>
+                {' '}and we'll prioritize your request. Your limit resets next month.
+              </>
+            )}
           </p>
 
           <div className="mt-6 space-y-3">
-            <button
-              onClick={handleUpgrade}
-              disabled={isUpgrading}
-              className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50"
-            >
-              {isUpgrading ? 'Upgrading...' : `Upgrade to ${suggestedPlan === 'pro' ? 'Pro' : 'Starter'} (${suggestedPrice}/month)`}
-            </button>
+            {/* Only show upgrade button if not already on Pro */}
+            {plan !== 'pro' && (
+              <button
+                onClick={handleUpgrade}
+                disabled={isUpgrading}
+                className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50"
+              >
+                {isUpgrading ? 'Upgrading...' : `Upgrade to ${suggestedPlan === 'pro' ? 'Pro' : 'Starter'} (${suggestedPrice}/month)`}
+              </button>
+            )}
             
             <button
               onClick={onClose}
               className="w-full px-6 py-2 text-gray-600 hover:text-gray-800 text-sm"
             >
-              Maybe later
+              {plan === 'pro' ? 'Got it' : 'Maybe later'}
             </button>
           </div>
         </div>

@@ -1,10 +1,13 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { searchCompanies, fetchWebsiteContent } from '@/lib/search';
 import { analyzeWebsiteAgainstICP } from '@/lib/ai';
 import { db, companies as companiesTable } from '@/lib/db';
+import { getEffectiveEntitlements, incrementUsage } from '@/lib/billing/entitlements';
 import type { Company } from '@/types';
 
 const model = openai('gpt-4o');
@@ -49,6 +52,87 @@ async function findCompetitorsHandler(request: NextRequest) {
       };
 
       try {
+        // ========== AUTH & BILLING ENFORCEMENT ==========
+        console.log('[COMPETITORS] Checking authentication and billing...');
+        
+        const cookieStore = await cookies();
+        const supabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              getAll() { return cookieStore.getAll(); },
+              setAll(cookiesToSet) {
+                cookiesToSet.forEach(({ name, value, options }) =>
+                  cookieStore.set(name, value, options)
+                );
+              },
+            },
+          }
+        );
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          console.error('[COMPETITORS] Not authenticated');
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Unauthorized', type: 'error' })}\n\n`));
+          controller.close();
+          return;
+        }
+
+        console.log('[COMPETITORS] User authenticated:', user.email);
+
+        const { effectivePlan, isTrialing, allowed, used, thresholds } = 
+          await getEffectiveEntitlements(user.id);
+
+        console.log('[COMPETITORS] Entitlements:', {
+          plan: effectivePlan,
+          trial: isTrialing,
+          used,
+          allowed,
+          thresholds,
+        });
+
+        if (used >= thresholds.blockAt) {
+          console.log('[COMPETITORS] BLOCKED: User at limit');
+          const upgradePlan = effectivePlan === 'free' || isTrialing ? 'starter' : 'pro';
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
+            error: 'Limit reached',
+            message: `You've reached your ${isTrialing ? 'trial' : effectivePlan} limit of ${allowed} AI generations this month.`,
+            type: 'error',
+            code: 'LIMIT_REACHED',
+            usage: { used, allowed },
+            cta: {
+              type: 'upgrade',
+              plan: upgradePlan,
+              url: '/settings/billing',
+            },
+          })}\n\n`));
+          controller.close();
+          return;
+        }
+
+        const shouldWarn = used >= thresholds.warnAt;
+        const remaining = allowed - used;
+
+        if (shouldWarn) {
+          console.log(`[COMPETITORS] WARNING: User at ${used}/${allowed} (${remaining} left)`);
+        }
+
+        console.log('[COMPETITORS] Incrementing usage...');
+        try {
+          await incrementUsage(user.id, isTrialing);
+          console.log('[COMPETITORS] Usage incremented successfully');
+        } catch (usageError) {
+          console.error('[COMPETITORS] Failed to increment usage:', usageError);
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Failed to track usage', type: 'error' })}\n\n`));
+          controller.close();
+          return;
+        }
+
+        // ========== PROCEED WITH COMPETITOR SEARCH ==========
+        const userId = user.id;
+
         const body = await request.json();
         const { companyName, companyDomain, icp, existingProspects, batchSize } = CompetitorsRequestSchema.parse(body);
 
@@ -239,7 +323,7 @@ Return a JSON array of competitor objects with "name" and optionally "domain".`;
               try {
                 // Insert directly into database to get a proper ID
                 const insertedCompetitor = await db.insert(companiesTable).values({
-                  userId: 'demo-user', // TODO: Get from auth context
+                  userId,
                   name: candidate.name,
                   domain: candidate.domain,
                   source: 'expanded',
