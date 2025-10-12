@@ -73,7 +73,7 @@ export async function getEffectiveEntitlements(userId: string) {
   const allowed = isTrialing ? (trial?.max_generations || 10) : (planData?.max_ai_generations_per_month || 0);
 
   // 7) Compute thresholds
-  const thresholds = getThresholds(effectivePlan, allowed, isTrialing);
+  const thresholds = getThresholds(effectivePlan, allowed, isTrialing || false);
 
   return { effectivePlan, isTrialing, allowed, used, thresholds };
 }
