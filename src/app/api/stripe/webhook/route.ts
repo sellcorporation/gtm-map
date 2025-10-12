@@ -93,20 +93,31 @@ export async function POST(request: NextRequest) {
         const planId = planData?.plan_id || 'starter';
 
         // Update user subscription
+        const updateData: {
+          plan_id: string;
+          status: string;
+          stripe_subscription_id: string;
+          stripe_price_id: string;
+          current_period_start?: string;
+          current_period_end?: string;
+        } = {
+          plan_id: planId,
+          status: 'active',
+          stripe_subscription_id: subscription.id,
+          stripe_price_id: priceId,
+        };
+
+        // Add period dates if available
+        if ('current_period_start' in subscription && typeof subscription.current_period_start === 'number') {
+          updateData.current_period_start = new Date(subscription.current_period_start * 1000).toISOString();
+        }
+        if ('current_period_end' in subscription && typeof subscription.current_period_end === 'number') {
+          updateData.current_period_end = new Date(subscription.current_period_end * 1000).toISOString();
+        }
+
         await supabaseAdmin
           .from('user_subscriptions')
-          .update({
-            plan_id: planId,
-            status: 'active',
-            stripe_subscription_id: subscription.id,
-            stripe_price_id: priceId,
-            current_period_start: new Date(
-              subscription.current_period_start * 1000
-            ).toISOString(),
-            current_period_end: new Date(
-              subscription.current_period_end * 1000
-            ).toISOString(),
-          })
+          .update(updateData)
           .eq('user_id', userId);
 
         // Close trial when user subscribes to paid plan
@@ -159,25 +170,21 @@ export async function POST(request: NextRequest) {
           stripe_price_id: string;
           current_period_start?: string;
           current_period_end?: string;
-          updated_at?: string;
+          canceled_at?: string;
         } = {
           plan_id: planId,
           status: subscription.status === 'active' ? 'active' : subscription.status,
           stripe_price_id: priceId,
         };
 
-        // Only update timestamps if they exist
-        if (subscription.current_period_start) {
-          updateData.current_period_start = new Date(
-            subscription.current_period_start * 1000
-          ).toISOString();
+        // Only update timestamps if they exist (with type guards)
+        if ('current_period_start' in subscription && typeof subscription.current_period_start === 'number') {
+          updateData.current_period_start = new Date(subscription.current_period_start * 1000).toISOString();
         }
-        if (subscription.current_period_end) {
-          updateData.current_period_end = new Date(
-            subscription.current_period_end * 1000
-          ).toISOString();
+        if ('current_period_end' in subscription && typeof subscription.current_period_end === 'number') {
+          updateData.current_period_end = new Date(subscription.current_period_end * 1000).toISOString();
         }
-        if (subscription.canceled_at) {
+        if ('canceled_at' in subscription && typeof subscription.canceled_at === 'number') {
           updateData.canceled_at = new Date(subscription.canceled_at * 1000).toISOString();
         }
 
