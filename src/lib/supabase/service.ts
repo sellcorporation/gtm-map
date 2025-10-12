@@ -43,7 +43,7 @@ function getSupabaseAdminInstance(): SupabaseClient {
 export const supabaseAdmin = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
     const instance = getSupabaseAdminInstance();
-    const value = (instance as any)[prop];
+    const value = instance[prop as keyof SupabaseClient];
     return typeof value === 'function' ? value.bind(instance) : value;
   },
 });
