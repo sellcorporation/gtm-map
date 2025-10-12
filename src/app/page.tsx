@@ -671,8 +671,8 @@ export default function HomePage() {
   };
 
   const warnThreshold = usage ? getWarningThreshold(usage.plan, usage.allowed) : 0;
-  const shouldShowWarning = usage && usage.allowed > 0 && usage.used >= warnThreshold;
-  const isAtLimit = usage && usage.allowed > 0 && usage.used >= usage.allowed;
+  const shouldShowWarning = !!(usage && usage.allowed > 0 && usage.used >= warnThreshold);
+  const isAtLimit = !!(usage && usage.allowed > 0 && usage.used >= usage.allowed);
 
   // ✅ Show loading spinner while initial data loads (prevents content flashing)
   if (isInitialLoading) {
