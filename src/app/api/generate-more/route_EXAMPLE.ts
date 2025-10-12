@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
   // ----------------------------------------------------------------------------
   
   try {
-    await incrementUsage(user.id);
+    await incrementUsage(user.id, isTrialing || false);
   } catch (error) {
     console.error('[GENERATE] Failed to increment usage:', error);
     return NextResponse.json(
