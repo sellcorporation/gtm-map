@@ -136,7 +136,11 @@ export async function POST(request: NextRequest) {
   
   // ... your AI generation code ...
   
-  const generatedProspects = [
+  const generatedProspects: Array<{
+    name: string;
+    domain: string;
+    // ... add your prospect fields here
+  }> = [
     // ... generated data ...
   ];
 
