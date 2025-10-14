@@ -24,8 +24,11 @@
 - 10 AI-powered prospect generations
 - ICP (Ideal Customer Profile) extraction
 - Market map visualization
-- Competitor analysis
+- Competitor discovery
+- Decision maker identification
+- CSV bulk import
 - No credit card required
+- Export to CSV
 
 **Starter Plan - £29/month**
 - 50 AI-powered prospect generations/month
@@ -42,8 +45,9 @@
 - Everything in Starter
 - Priority support
 - Early access to new features
-- Advanced filtering (coming soon)
+- Advanced sorting & filtering (coming soon)
 - CRM integrations (coming soon)
+- Email template generation (coming soon)
 
 ---
 
@@ -59,7 +63,7 @@ Find Your Perfect Customers, Faster
 **Subheadline** (Large text):
 ```
 AI-powered market intelligence that identifies high-quality prospects 
-matching your ICP. Stop guessing. Start closing.
+matching your ideal customer profile. Stop guessing. Start closing.
 ```
 
 **CTA Buttons**:
@@ -114,14 +118,14 @@ For solo founders
 [Start Free Trial →]
 Then £29/month
 
-✓ 50 AI generations/month
+✓ 50 AI-powered prospect generations/month
 ✓ Unlimited ICP profiles
-✓ Unlimited manual prospects
+✓ Unlimited manual prospect additions
 ✓ Market map & clustering
-✓ Competitor analysis
-✓ CSV bulk import & export
-✓ Decision maker ID
-✓ Priority email support
+✓ Competitor discovery
+✓ CSV bulk import
+✓ Decision maker identification
+✓ Export to CSV
 
 [Start Free Trial →]
 ```
@@ -145,14 +149,15 @@ For growth teams
 [Start Free Trial →]
 Then £99/month
 
-✓ 200 AI generations/month
-✓ Everything in Starter, plus:
-✓ Advanced filtering (coming)
-✓ CRM integrations (coming)
-✓ API access (coming)
+✓ 200 AI-powered prospect generations/month
+✓ Everything in Starter
 ✓ Priority support
-✓ Early feature access
+✓ Early access to new features
+✓ Advanced sorting & filtering (coming soon)
+✓ CRM integrations (coming soon)
+✓ Email template generation (coming soon)
 ✓ Dedicated success manager
+
 
 [Start Free Trial →]
 ```
@@ -230,7 +235,7 @@ Founder, SaaS Startup
 #### Testimonial 2
 ```
 "We cut our prospecting time by 80%. The AI competitor 
-analysis alone is worth the price."
+analysis alone is worth the price. Nice and basic CRM. Gets the job done."
 
 — James Rodriguez
 Head of Sales, B2B Agency
@@ -257,31 +262,28 @@ VP Marketing, Tech Company
 **A**: Your trial automatically converts to the Free plan (0 generations). You can upgrade to Starter or Pro anytime to continue generating prospects.
 
 #### Q2: Do I need a credit card to start?
-**A**: No! Start your 7-day trial with just an email. No credit card required.
+**A**: No! Start your 7-day trial with just an email. No credit card required. Test-drive it first.
 
 #### Q3: What counts as an "AI generation"?
-**A**: Each time you use AI to find prospects, analyze a company, or discover competitors, that's one AI generation. Manual additions are unlimited.
+**A**: Each time you use AI to find leads, analyze a company, or discover decision makers, that's one AI generation. Manual additions are unlimited.
 
 #### Q4: Can I upgrade or downgrade anytime?
 **A**: Yes! Upgrade instantly. Downgrades take effect at the end of your current billing period.
 
 #### Q5: What payment methods do you accept?
-**A**: We accept all major credit cards (Visa, Mastercard, Amex) via Stripe. Invoicing available for annual plans.
+**A**: We accept all major credit cards (Visa, Mastercard, Amex) via Stripe. Invoicing available for annual plans (coming soon).
 
 #### Q6: Do you offer annual plans?
 **A**: Not yet! Annual plans with discounts are coming soon. Join our waitlist to be notified.
 
 #### Q7: What if I run out of AI generations?
-**A**: You'll get a warning at 80% usage. At 100%, you can still use all features except AI generation. Upgrade anytime to continue.
+**A**: Once you've ran all the AI generations for the month (congratulations, you're a power user!) you can still use all features except AI generation. Upgrade anytime to continue.
 
 #### Q8: Can I cancel anytime?
 **A**: Absolutely. Cancel with one click from your billing settings. No questions asked, no hidden fees.
 
-#### Q9: Do you offer refunds?
-**A**: Yes! 30-day money-back guarantee. If you're not satisfied, we'll refund your first month.
-
-#### Q10: Is my data secure?
-**A**: Yes. We use enterprise-grade encryption, and your data is stored in EU servers. We never share your data with third parties.
+#### Q9: Is my data secure?
+**A**: Yes. We use enterprise-grade encryption. We never sell your data to third parties.
 
 ---
 
