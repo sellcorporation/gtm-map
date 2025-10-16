@@ -328,11 +328,11 @@ useEffect(() => {
 ## **NEXT STEPS**
 
 1. **User confirms plan** ✅
-2. **I create `/api/session` route** (5 min)
-3. **I refactor `page.tsx` to remove localStorage** (15 min)
-4. **I refactor `ProspectsTab.tsx` to remove localStorage** (10 min)
-5. **Test end-to-end** (10 min)
-6. **Deploy & verify** (5 min)
+2. **I create `/api/session` route** 
+3. **I refactor `page.tsx` to remove localStorage** 
+4. **I refactor `ProspectsTab.tsx` to remove localStorage** 
+5. **Test end-to-end** )
+6. **Deploy & verify** 
 
 **Total Time: ~45 minutes**
 

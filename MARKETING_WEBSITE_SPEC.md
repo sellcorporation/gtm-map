@@ -158,7 +158,7 @@ Prospecting Shouldn't Be This Hard
 - ❌ No idea where to start
 
 **Column 2: Expensive Tools**
-- ❌ $500+/month for basic features
+- ❌ £500+/month for basic features
 - ❌ Complex setup and training
 - ❌ Still requires manual work
 - ❌ Locked into annual contracts
@@ -257,12 +257,7 @@ From Zero to Pipeline in 3 Simple Steps
 - Headline: "Reach the Right People"
 - Description: "Find key decision makers at target companies instantly."
 
-**Feature 5: Market Visualization**
-- Icon: 📊
-- Headline: "See Your Landscape"
-- Description: "Visual market map shows opportunities and white space."
-
-**Feature 6: CSV Export**
+**Feature 5: CSV Export**
 - Icon: 📥
 - Headline: "Works With Your Tools"
 - Description: "Export to CSV or integrate with your CRM (HubSpot, Salesforce)."
@@ -334,10 +329,10 @@ is a potential customer, not a cold lead.
 ```
 💰 Fraction of the Cost
 
-Get enterprise-level intelligence for $29/month.
+Get enterprise-level intelligence for f29/month.
 No hidden fees, no annual lock-in.
 
-"Replaced our $800/month tool" - Emily, CMO
+"Replaced our £800/month tool" - Emily, CMO
 ```
 
 ---
@@ -346,7 +341,7 @@ No hidden fees, no annual lock-in.
 
 **Goal**: Social proof from real users
 
-#### Layout: 3 Cards (carousel on mobile)
+#### Layout: 2 Cards (carousel on mobile)
 
 **Testimonial 1**
 ```
@@ -380,22 +375,6 @@ No hidden fees, no annual lock-in.
 └─────────────────────────────────────┘
 ```
 
-**Testimonial 3**
-```
-┌─────────────────────────────────────┐
-│  ⭐⭐⭐⭐⭐                           │
-│                                     │
-│  "The market map visualization gave  │
-│   us insights we never had before.   │
-│   Game-changer for our go-to-market  │
-│   strategy."                        │
-│                                     │
-│  — Emily Thompson                   │
-│     VP Marketing, SaaS Company      │
-│     [LinkedIn Icon]                 │
-└─────────────────────────────────────┘
-```
-
 ---
 
 ### Section 9: Comparison Table
@@ -411,10 +390,9 @@ GTM Map vs. Traditional Methods
 |---------|----------------|-------------------|---------|
 | **Time to 50 prospects** | 2-3 weeks | 5-10 hours | 10 minutes |
 | **ICP Accuracy** | Guesswork | Manual filtering | AI-powered |
-| **Cost per month** | Your time | $79-$149 | $29-$99 |
+| **Cost per month** | Your time | £79-£149 | £29-£99 |
 | **Competitor analysis** | ❌ | ❌ | ✅ |
 | **Decision maker ID** | ❌ | ✅ | ✅ |
-| **Market visualization** | ❌ | ❌ | ✅ |
 | **Learning curve** | N/A | Steep | 5 minutes |
 | **Annual contract** | N/A | Required | No lock-in |
 
@@ -447,13 +425,13 @@ GTM Map vs. Traditional Methods
 #### 5 Quick Q&As
 
 **Q1: How is this different from LinkedIn Sales Navigator?**
-A: GTM Map uses AI to analyze your ICP and find prospects across the entire market, not just LinkedIn. We also provide competitor analysis and market visualization.
+A: GTM Map uses AI to analyze your ICP and find prospects across the entire market, not just LinkedIn. We also provide competitor analysis and A CRM to track progress.
 
 **Q2: Do I need technical skills?**
 A: No! If you can paste a URL and click a button, you can use GTM Map. Most users are set up in under 5 minutes.
 
 **Q3: What if I don't get good results?**
-A: 30-day money-back guarantee. Plus, our AI improves as you provide feedback on prospects.
+A: Take it for a test drive on your free trial. Plus, our AI improves as you provide feedback on prospects.
 
 **Q4: Can I cancel anytime?**
 A: Yes! No contracts, no commitments. Cancel with one click.
@@ -829,7 +807,7 @@ analytics.track('exit_intent_triggered', {
 ### Heatmaps & Session Recording
 
 Tools to implement:
-- **Hotjar** or **Microsoft Clarity** (heatmaps, recordings)
+- **Hotjar** or **Microsoft Clarity** (heatmaps, recordings) (postMVP)
 - **Google Analytics 4** (standard analytics)
 - **Mixpanel** or **Amplitude** (product analytics)
 
