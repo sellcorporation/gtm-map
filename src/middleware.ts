@@ -20,20 +20,45 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Define public routes (don't require auth)
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback'];
+  const publicRoutes = [
+    '/login', 
+    '/signup', 
+    '/forgot-password', 
+    '/reset-password', 
+    '/auth/callback',
+    // Marketing routes
+    '/pricing',
+    '/features', 
+    '/use-cases',
+    '/how-it-works',
+    '/about',
+    '/contact',
+    '/faq',
+    '/legal/privacy',
+    '/legal/terms'
+  ];
   const isPublicRoute = publicRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
+  
+  // Marketing routes that should show marketing homepage for unauthenticated users
+  const marketingRoutes = ['/', '/pricing', '/features', '/use-cases', '/how-it-works', '/about', '/contact', '/faq', '/legal/privacy', '/legal/terms'];
+  const isMarketingRoute = marketingRoutes.some((route) => request.nextUrl.pathname === route);
 
   // If user is not authenticated and trying to access protected route
   if (!user && !isPublicRoute) {
-    // Redirect to login
+    // If it's a marketing route, allow it (marketing layout will handle it)
+    if (isMarketingRoute) {
+      return response;
+    }
+    
+    // Otherwise redirect to login
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
     return Response.redirect(redirectUrl);
   }
 
-  // If user IS authenticated and trying to access auth pages
-  if (user && isPublicRoute && request.nextUrl.pathname !== '/auth/callback') {
+  // If user IS authenticated and trying to access auth pages (but not marketing pages)
+  if (user && isPublicRoute && request.nextUrl.pathname !== '/auth/callback' && !isMarketingRoute) {
     // Redirect to home
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/';
