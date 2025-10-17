@@ -9,7 +9,7 @@ import BenefitsSection from "@/components/marketing/BenefitsSection";
 import Testimonials from "@/components/marketing/Testimonials";
 import ComparisonTable from "@/components/marketing/ComparisonTable";
 import PricingTeaser from "@/components/marketing/PricingTeaser";
-import FAQ from "@/components/marketing/FAQ";
+import FAQServer from "@/components/marketing/FAQServer";
 import CTASection from "@/components/marketing/CTASection";
 
 export const metadata: Metadata = {
@@ -46,7 +46,7 @@ export default function LandingPage() {
       <Testimonials />
       <ComparisonTable />
       <PricingTeaser />
-      <FAQ />
+      <FAQServer />
       <CTASection />
     </>
   );

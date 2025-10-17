@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import FAQHero from "@/components/marketing/FAQHero";
-import FAQSection from "@/components/marketing/FAQSection";
+import FAQSectionServer from "@/components/marketing/FAQSectionServer";
 import CTASection from "@/components/marketing/CTASection";
 
 export const metadata: Metadata = {
@@ -31,7 +31,7 @@ export default function FAQPage() {
       <FAQHero />
 
       {/* FAQ Section */}
-      <FAQSection />
+      <FAQSectionServer />
 
       {/* CTA Section */}
       <CTASection />

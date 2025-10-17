@@ -70,7 +70,7 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className={`min-h-screen flex flex-col ${inter.variable}`}>
       <Header />
       <main className="flex-1">
         {children}
